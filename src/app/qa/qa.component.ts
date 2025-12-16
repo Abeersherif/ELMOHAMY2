@@ -198,7 +198,7 @@ export class QaComponent {
       .map((law, idx) => {
         const title = law.titel || law.law_name || 'بدون عنوان';
         const details = law.details || 'لا يوجد نص متوفر.';
-        return `📄 **مادة ${idx + 1}: ${title}**\n${details}`;
+        return `📄 <strong>مادة ${idx + 1}: ${title}</strong>\n${details}`;
       })
       .join('\n\n---\n\n');
 
@@ -349,7 +349,7 @@ export class QaComponent {
         console.log('Upload response:', response);
 
         if (response.status === 'success') {
-          const analysisText = `📄 تحليل المستند: ${response.filename}\n\n${response.analysis}\n\n📝 تم استخراج ${response.full_text_length} حرف من النص`;
+          const analysisText = `📄 تحليل المستند: ${response.filename}\n\n${response.analysis}`;
           this.chatHistory.push({ sender: 'bot', text: analysisText });
         } else {
           this.chatHistory.push({ sender: 'bot', text: `❌ فشل معالجة المستند: ${response.message}` });

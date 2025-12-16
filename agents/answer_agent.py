@@ -1,6 +1,11 @@
 
 import logging
+import re
+import json
+import base64
+import io
 from typing import Dict, List, Any
+from PIL import Image
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -14,6 +19,26 @@ class AnswerAgent:
     def __init__(self, llm: ChatGoogleGenerativeAI):
         self.llm = llm
         logger.info("✅ Answer Agent initialized")
+
+    def _format_markdown_response(self, text: str) -> str:
+        """
+        Apply common formatting rules to converting markdown to HTML-friendly format
+        for the specific frontend requirements (bolding, spacing).
+        """
+        
+        # Ensure newlines before bold headers: **Header** -> \n\n**Header**
+        text = re.sub(r'([^\n])\n\*\*', r'\1\n\n**', text)
+        
+        # Ensure newlines after bold headers: **Header**\nText -> **Header**\n\nText
+        text = re.sub(r'(\*\*.*?\*\*)\n([^\n])', r'\1\n\n\2', text)
+        
+        # Convert **Bold** to <strong>Bold</strong>
+        text = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', text)
+        
+        # Convert bullets "* " to "• "
+        text = text.replace("* ", "\u2022 ")
+        
+        return text
 
     def generate_answer(self, user_query: str, retrieved_articles: List[Dict[str, Any]]) -> str:
         """
@@ -67,7 +92,7 @@ class AnswerAgent:
 **تعليمات التنسيق الصارمة:**
 - يجب أن تكون العناوين الرئيسية مكتوبة بين نجمتين ** لتظهر بخط عريض.
 - **يجب ترك سطر فارغ تماماً** قبل كل عنوان رئيسي وبعده.
-- استخدم الرموز النقطية (•) للقوائم.
+- استخدم الرموز النقطية (-) للقوائم.
 - ممنوع دمج العنوان مع النص في نفس السطر.
 """
 
@@ -90,19 +115,7 @@ class AnswerAgent:
             response = self.llm.invoke(messages)
             answer = response.content.strip()
 
-            import re
-
-            import re
-
-            answer = re.sub(r'([^\n])\n\*\*', r'\1\n\n**', answer)
-
-            answer = re.sub(r'(\*\*.*?\*\*)\n([^\n])', r'\1\n\n\2', answer)
-
-            answer = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', answer)
-
-            answer = answer.replace("* ", "• ")
-
-            return answer
+            return self._format_markdown_response(answer)
 
         except Exception as e:
             logger.error(f"❌ Gemini Answer Generation Error: {e}")
@@ -114,9 +127,29 @@ class AnswerAgent:
         Gemini will answer directly from its own general knowledge.
         """
         system_prompt = """
-        أنت مساعد قانوني. لم يتم العثور على مواد قانونية في قاعدة البيانات.
-        قدم إجابة عامة بناءً على المبادئ القانونية المصرية،
-        ولكن بدون الإشارة إلى مواد محددة لأنه لم يتم استرجاع أي منها.
+        أنت مستشار قانوني مصري خبير.
+        لم يتم العثور على مواد قانونية محددة في قاعدة البيانات لهذا السؤال, لكن يمكنك الإجابة بناءً على خبرتك العامة في القانون المصري.
+
+        **يجب اتباع نفس هيكل الإجابة الرسمي:**
+        
+        1. **تحية ومقدمة** (توضح أن الإجابة عامة).
+        
+        2. **شرح الموقف القانوني العام**
+           - العنوان: **ملخص الوضع القانوني**
+           - اشرح المبادئ العامة.
+        
+        3. **نصائح وإجراءات مقترحة**
+           - العنوان: **إجراءات مقترحة**
+           - خطوات عملية.
+
+        4. **تنبيه هام**
+           - العنوان: **تنبيه**
+           - وضح أن هذه الإجابة استرشادية لعدم توفر النص القانوني الدقيق في قاعدة البيانات.
+
+        **تعليمات التنسيق:**
+        - استخدم **للعناوين العريضة**.
+        - افصل بين الفقرات بأسطر فارغة.
+        - استخدم النقاط للقوائم.
 """
 
         user_message = f"السؤال: {user_query}"
@@ -130,7 +163,7 @@ class AnswerAgent:
             if not response or not response.content:
                 return "لم أستطع توليد إجابة حالياً. حاول مرة أخرى."
 
-            return response.content.strip()
+            return self._format_markdown_response(response.content.strip())
 
         except Exception as e:
             logger.error(f"❌ Fallback Gemini error: {e}")
@@ -169,9 +202,6 @@ class AnswerAgent:
             ])
 
             content = response.content.strip()
-
-            import json
-            import re
 
             if content.startswith("```"):
                 lines = content.split("\n")
@@ -275,8 +305,6 @@ class AnswerAgent:
 
             content = response.content.strip()
 
-            import json
-            import re
             if content.startswith("```"):
                 lines = content.split("\n")
                 content = "\n".join(lines[1:-1])
@@ -343,9 +371,6 @@ class AnswerAgent:
             ])
 
             content = response.content.strip()
-
-            import json
-            import re
 
             if content.startswith("```"):
                 lines = content.split("\n")
@@ -417,10 +442,6 @@ class AnswerAgent:
             Dictionary with extracted text and legal analysis
         """
         try:
-            import base64
-            from PIL import Image
-            import io
-
             extracted_text = ""
 
             if content_type == "text/plain":
@@ -443,10 +464,10 @@ class AnswerAgent:
                 from langchain_core.messages import HumanMessage
 
                 vision_prompt = """
-Extract ALL text from this legal document image.
-Preserve the original Arabic text exactly as it appears.
-Include article numbers, headings, and body text.
-Format the output clearly with proper line breaks.
+                Extract ALL text from this legal document image.
+                Preserve the original Arabic text exactly as it appears.
+                Include article numbers, headings, and body text.
+                Format the output clearly with proper line breaks.
 """
 
                 message = HumanMessage(
@@ -476,16 +497,32 @@ Format the output clearly with proper line breaks.
 
             if extracted_text:
                 analysis_prompt = f"""
-أنت خبير قانوني. حلل نص هذا المستند القانوني وقدم:
-1. نوع المستند (قانون، مرسوم، عقد، إلخ)
-2. الموضوع الرئيسي
-3. النقاط القانونية الرئيسية (3-5 نقاط)
-4. أي مواد أو بنود هامة مذكورة
+أنت محامي قانوني مصري خبير. حلل نص هذا المستند القانوني وقدم تقريراً "بنفس تنسيق الاستشارة القانونية".
 
-النص:
-{extracted_text[:2000]}
+**هيكل الإجابة المطلوب:**
 
-قدم التحليل باللغة العربية بشكل واضح ومنظم.
+1. **(بدون عنوان) تحية مباشرة**
+   - ابدأ بـ "أهلاً بك, بصفتي مستشارك القانوني..." أو ما شابه مباشرة دون كتابة "تحية".
+
+2. **ملخص المستند**
+   - اشرح نوع المستند وموضعه باختصار.
+
+3. **النقاط الرئيسية**
+   - استخرج أهم البنود أو الالتزامات في المستند (التواريخ, المبالغ, الشروط).
+
+4. **تنبيهات قانونية**
+   - اذكر أي مخاطر أو شروط جزائية أو ثغرات.
+
+5. **الرأي القانوني**
+   - نصيحة ختامية واضحة للمستخدم.
+
+**تعليمات التنسيق الصارمة:**
+- لا تكتب كلمة "تحية" أو "مقدمة" كعنوان. ابدأ بالنص فوراً.
+- استخدم العناوين الرئيسية فقط للأقسام الأخرى (محاطة بـ **).
+- استخدم النقاط (-) للقوائم.
+
+النص المستخرج من المستند:
+{extracted_text[:3000]}
 """
 
                 analysis_response = self.llm.invoke([
@@ -493,6 +530,29 @@ Format the output clearly with proper line breaks.
                 ])
 
                 analysis = analysis_response.content.strip()
+                
+                # Apply standard formatting (Cleanup)
+                answer = analysis
+                # 1. Remove "1. **Title**" numbering if present along with bold, reducing to just **Title**? 
+                # Actually user wants "polished headlines".
+                # Let's ensure strict single bold headers.
+                
+                # Fix: remove double headers if any (e.g. **Header**\nHeader)
+                # But LLM is unpredictable.
+                
+                # Fix stars:
+                # Convert **Bold** to <strong>Bold</strong>
+                answer = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', answer)
+                
+                # Remove single stars used for bullets
+                answer = answer.replace("* ", "\u2022 ")
+                
+                # Cleanup: Ensure newlines around headers
+                answer = re.sub(r'([^\n])\n<strong>', r'\1\n\n<strong>', answer)
+                answer = re.sub(r'(</strong>)\n([^\n])', r'\1\n\n\2', answer)
+
+                analysis = answer
+                
             else:
                 analysis = "لم يتمكن النظام من استخراج نص من المستند."
 
@@ -507,4 +567,3 @@ Format the output clearly with proper line breaks.
                 "extracted_text": "",
                 "analysis": f"خطأ في معالجة المستند: {str(e)}"
             }
-

@@ -11,7 +11,8 @@ export class LegalAgentService {
   constructor(private http: HttpClient) { }
 
   askQuestion(question: string): Observable<any> {
-    const body = { query: question };
+    const sessionId = 'session_' + Date.now(); // Generate unique session ID
+    const body = { query: question, session_id: sessionId };
     return this.http.post<any>(this.apiUrl, body);
   }
 }

@@ -229,3 +229,42 @@ Format: ["Table Name 1", "Table Name 2"]
         except Exception as e:
             logger.error(f"❌ Error in AI table selection: {e}")
             return []
+
+    def reformulate_query(self, user_query: str, chat_history: List[Dict[str, str]]) -> str:
+        """
+        Reformulate the user query to be standalone based on chat history.
+        e.g. "What about theft?" -> "What is the penalty for theft?" (if context was about penalties)
+        """
+        if not chat_history:
+            return user_query
+
+        # Convert history to prompt format
+        history_text = ""
+        for turn in chat_history[-3:]: # Look at last 3 turns
+            history_text += f"User: {turn.get('user', '')}\nAssistant: {turn.get('bot', '')}\n"
+
+        system_prompt = """
+أنت مساعد ذكي. مهمتك هي إعادة صياغة سؤال المستخدم الأخير ليكون "مستقلاً" ومفهوماً بناءً على سياق الحوار السابق.
+إذا كان السؤال معتمداً على ما قبله (مثل: "ما هي عقوبتها؟" أو "كيف أفعل ذلك؟")، أعد كتابته ليحتوي على كل التفاصيل اللازمة.
+إذا كان السؤال واضحاً ومستقلاً، أعده كما هو.
+
+أمثلة:
+سياق: المستخدم: أريد رفع دعوى طلاق. المساعد: تفاصيل...
+سؤال حالي: كم تتكلف؟
+إعادة صياغة: كم تكلفة رفع دعوى الطلاق؟
+
+أعد الصياغة فقط بدون أي مقدمات.
+"""
+        messages = [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=f"سجل الحوار السابق:\n{history_text}\n\nالسؤال الحالي: {user_query}")
+        ]
+
+        try:
+            response = self.llm.invoke(messages)
+            new_query = response.content.strip()
+            logger.info(f"🔄 Reformulated Query: '{user_query}' -> '{new_query}'")
+            return new_query
+        except Exception as e:
+            logger.error(f"❌ Error reformulating query: {e}")
+            return user_query

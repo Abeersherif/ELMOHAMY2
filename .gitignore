@@ -61,3 +61,7 @@ ENV/
 env/
 *.egg-info/
 .pytest_cache/
+
+# SQLite temporary files
+*.db-shm
+*.db-wal

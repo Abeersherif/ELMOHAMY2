@@ -45,7 +45,7 @@ from agents.retrieval_agent import RetrievalAgent
 from agents.answer_agent import AnswerAgent
 from agents.knowledge_agent import KnowledgeAgent
 # Define DB Path explicitly
-DB_PATH = r"C:\Users\Administrator\Desktop\mohamy\law_database.db"
+DB_PATH = r"C:\Users\Administrator\Desktop\MohamyMasry\law_database.db"
 
 # Initialize Agents
 llm = init_llm()
@@ -98,6 +98,9 @@ class AnswerResponse(BaseModel):
 # Endpoints
 # ---------------------------
 
+# In-memory history: {session_id: [{"user": "...", "bot": "..."}]}
+CHAT_HISTORY: Dict[str, List[Dict[str, str]]] = {}
+
 @app.post("/ask", response_model=Dict[str, Any])
 async def ask(request: QueryRequest):
     """
@@ -110,49 +113,53 @@ async def ask(request: QueryRequest):
         
         logger.info(f"🧑‍⚖️ New Query: {query} [Session: {session_id}]")
 
-        # 1. Step 1: Initial Summary & Steps (Immediate Response) - Not fully async here, but fast
-        # (This is usually streamed, but here we do it as part of generated answer)
+        # 0. Contextualize Query (History Handling)
+        history = CHAT_HISTORY.get(session_id, [])
+        
+        # Reformulate query if history exists
+        if history:
+            processed_query = router_agent.reformulate_query(query, history)
+        else:
+            processed_query = query
+            
+        logger.info(f"🗣️ Processed Query: {processed_query}")
 
-        # 2. Router: Understand Intent & Targets
-        # Get all tables first (needed for inference)
+        # 1. Step 1: Initial Summary & Steps (Immediate Response)
+        
+        # 2. Router: Understand Intent & Targets (Use Processed Query)
+        # Get all tables first
         all_law_tables = retrieval_agent.law_tables
         
         # Classification
-        intent_data = router_agent.classify_query(query)
+        intent_data = router_agent.classify_query(processed_query)
         intent_label = intent_data.get("intent", "General")
         
         # Infer Targets
-        target_tables = router_agent.infer_target_tables(query, all_law_tables)
+        target_tables = router_agent.infer_target_tables(processed_query, all_law_tables)
         
         logger.info(f"🧭 Intent: {intent_label}")
         logger.info(f"🎯 Target tables: {target_tables}")
         
         
-        # 3. Retrieval: Get Articles (Get MORE candidates for verification to filter)
+        # 3. Retrieval: Get Articles (Use Processed Query)
         if target_tables:
-             retrieved_articles = retrieval_agent.retrieve(query, {}, target_tables=target_tables, top_k=30)
+             retrieved_articles = retrieval_agent.retrieve(processed_query, {}, target_tables=target_tables, top_k=30)
         else:
-             # Fallback: search all or default tables if no specific target
-             all_tables = retrieval_agent.law_tables
-             # Limit search if too many tables, but here we trust retrieval agent
-             retrieved_articles = retrieval_agent.retrieve(query, {}, target_tables=[], top_k=30)
+             # Fallback
+             retrieved_articles = retrieval_agent.retrieve(processed_query, {}, target_tables=[], top_k=30)
 
         logger.info(f"📖 Retrieved {len(retrieved_articles)} articles from database")
 
         # 4. Answer Agent: Verify, Summarize, Answer
         
         # A) Initial Summary (for steps/guidance)
-        initial_resp = answer_agent.generate_initial_summary(query)
+        initial_resp = answer_agent.generate_initial_summary(processed_query)
         
         # B) Verify Articles Relevance
-        verification_result = answer_agent.verify_retrieved_articles(query, retrieved_articles)
+        verification_result = answer_agent.verify_retrieved_articles(processed_query, retrieved_articles)
         filtered_articles = verification_result.get("filtered_articles", [])
         
         # C) Generate Final Answer based on RELEVANT articles
-        # Use filtered articles if available.
-        # CRITICAL CHANGE: If verification failed (no relevant articles), DO NOT fallback to garbage.
-        # User prefers NO articles over WRONG articles.
-        
         if filtered_articles:
             articles_to_use = filtered_articles
             source = "database"
@@ -163,18 +170,26 @@ async def ask(request: QueryRequest):
         
         # If we have no articles, generate answer from LLM knowledge (fallback)
         if articles_to_use:
-            final_answer_text = answer_agent.generate_answer(query, articles_to_use)
+            final_answer_text = answer_agent.generate_answer(processed_query, articles_to_use)
         else:
-            final_answer_text = answer_agent.generate_fallback_answer(query)
+            final_answer_text = answer_agent.generate_fallback_answer(processed_query)
         
+        # Update History
+        if session_id:
+            if session_id not in CHAT_HISTORY:
+                CHAT_HISTORY[session_id] = []
+            CHAT_HISTORY[session_id].append({"user": query, "bot": final_answer_text})
+            # Keep only last 10 turns
+            if len(CHAT_HISTORY[session_id]) > 10:
+                CHAT_HISTORY[session_id].pop(0)
+
         # D) Related Topics
-        related_topics = answer_agent.suggest_related_topics(query, articles_to_use)
+        related_topics = answer_agent.suggest_related_topics(processed_query, articles_to_use)
         
         # Construct Response
         response_articles = [
             {
                 "id": a.get("id", 0),
-                # SHOW: "Labour Law - Article 1" instead of just "Labour Law"
                 "law_name": f"{a.get('main_category') or a.get('law_name')} - {a.get('titel')}", 
                 "titel": a.get("titel"),
                 "details": a.get("details"),
