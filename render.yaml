@@ -3,7 +3,7 @@ services:
   - type: web
     name: mohamy-api
     env: python
-    buildCommand: git lfs install --skip-smudge && git lfs pull && pip install -r requirements.txt
+    buildCommand: mkdir -p bin && curl -L https://github.com/git-lfs/git-lfs/releases/download/v3.4.0/git-lfs-linux-amd64-v3.4.0.tar.gz | tar -xz -C bin && ./bin/git-lfs install && ./bin/git-lfs pull && pip install -r requirements.txt
     startCommand: uvicorn mohamy:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: GOOGLE_API_KEY
