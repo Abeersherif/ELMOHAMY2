@@ -2,7 +2,7 @@
 
 # Large files
 *.pdf
-*.db
+# Note: law_database.db tracked via LFS
 
 # Dependencies
 node_modules/
