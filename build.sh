@@ -29,7 +29,7 @@ export PATH=$PWD/bin:$PATH
 
 # Install LFS hooks locally
 echo "Installing Git LFS hooks..."
-./bin/git-lfs install
+./bin/git-lfs install --force
 
 # Pull the large database file
 echo "Pulling LFS files (Database)..."
