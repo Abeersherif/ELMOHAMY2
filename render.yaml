@@ -1,0 +1,23 @@
+services:
+  # Backend API Service
+  - type: web
+    name: mohamy-api
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn mohamy:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: GOOGLE_API_KEY
+        sync: false  # You'll set this manually in Render dashboard
+      - key: PYTHON_VERSION
+        value: 3.11.0
+    
+  # Static Frontend (Angular built files)
+  - type: web
+    name: mohamy-frontend
+    env: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist/mohamy-masry/browser
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: no-cache

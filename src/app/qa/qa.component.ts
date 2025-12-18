@@ -2,6 +2,7 @@ import { Component, ChangeDetectorRef } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { environment } from '../../environments/environment';
 
 interface ChatMessage {
   sender: 'user' | 'bot';
@@ -68,8 +69,8 @@ interface AskResponse {
   imports: [CommonModule, FormsModule],
 })
 export class QaComponent {
-  apiUrl = 'http://127.0.0.1:8000/ask';
-  uploadUrl = 'http://127.0.0.1:8000/upload_document';
+  apiUrl = `${environment.apiUrl}/ask`;
+  uploadUrl = `${environment.apiUrl}/upload_document`;
 
   userInput = '';
   chatHistory: ChatMessage[] = [];
