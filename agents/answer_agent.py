@@ -62,6 +62,9 @@ class AnswerAgent:
             )
 
         context_text = "\n\n".join(top_context)
+        
+        # Check if user is asking about defense memo (مذكرة دفاع)
+        is_defense_memo_request = self._is_defense_memo_request(user_query)
 
         system_prompt = """
 أنت محامي قانوني مصري خبير ومتخصص. مهمتك تقديم استشارة قانونية شاملة وواضحة.
@@ -114,12 +117,93 @@ class AnswerAgent:
 
             response = self.llm.invoke(messages)
             answer = response.content.strip()
+            
+            # If this is a defense memo request, add the how-to section
+            if is_defense_memo_request:
+                how_to_section = self._generate_defense_memo_howto(user_query)
+                if how_to_section:
+                    answer = answer + "\n\n" + how_to_section
 
             return self._format_markdown_response(answer)
 
         except Exception as e:
             logger.error(f"❌ Gemini Answer Generation Error: {e}")
             return "حدث خطأ أثناء توليد الإجابة القانونية. برجاء المحاولة مرة أخرى."
+    
+    def _is_defense_memo_request(self, query: str) -> bool:
+        """
+        Check if the user's query is asking for defense drafting/writing.
+        Detects various patterns like: مذكرة دفاع، صيغة دفاع، دفاع عن المتهم، اعداد دفاع
+        """
+        # Direct defense memo keywords
+        defense_memo_keywords = [
+            "مذكرة دفاع", "مذكره دفاع", "مذكرة الدفاع", "مذكره الدفاع", 
+            "مذكرات دفاع", "صيغة دفاع", "صيغه دفاع"
+        ]
+        if any(keyword in query for keyword in defense_memo_keywords):
+            return True
+        
+        # Check for "دفاع" combined with drafting/preparation context
+        has_defense = "دفاع" in query
+        drafting_keywords = [
+            "صيغة", "صيغه", "اعداد", "إعداد", "كتابة", "كتابه", 
+            "اكتب", "نموذج", "صياغة", "صياغه", "عن المتهم", "للمتهم"
+        ]
+        has_drafting_context = any(keyword in query for keyword in drafting_keywords)
+        
+        return has_defense and has_drafting_context
+    
+    def _generate_defense_memo_howto(self, query: str) -> str:
+        """
+        Generate a case-specific defense memo structure based on the user's query.
+        Uses LLM to analyze the case and provide relevant defense points.
+        """
+        system_prompt = """
+أنت مستشار قانوني مصري. مهمتك تقديم إرشادات بسيطة وواضحة لصياغة دفاع في القضية المذكورة.
+
+**أسلوب الكتابة:**
+- استخدم لغة بسيطة يفهمها الجميع (محامين وغير محامين)
+- اشرح كل نقطة بوضوح
+- تجنب المصطلحات القانونية المعقدة قدر الإمكان
+
+**ابدأ مباشرة بدون عناوين رئيسية، واستخدم الهيكل التالي:**
+
+**ما يمكن الدفاع به:**
+- (اشرح بلغة بسيطة نقاط الدفاع الممكنة في هذه القضية)
+
+**المواد القانونية المفيدة:**
+- (اذكر المواد مع شرح بسيط لكل مادة)
+
+**ماذا نطلب من المحكمة:**
+- (الطلبات بشكل واضح ومفهوم)
+"""
+
+        user_message = f"القضية: {query}\n\nقدم إرشادات بسيطة للدفاع في هذه القضية يفهمها أي شخص."
+
+        try:
+            response = self.llm.invoke([
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=user_message)
+            ])
+            
+            result = response.content.strip()
+            return "**كيفية الدفاع في هذه القضية:**\n\n" + result
+        except Exception as e:
+            logger.error(f"❌ Error generating defense memo: {e}")
+            # Fallback to generic structure
+            return """
+**صياغة مذكرة الدفاع:**
+
+**1. الدفوع القانونية:**
+   - الدفوع الشكلية (بطلان الإجراءات)
+   - الدفوع الموضوعية (انتفاء أركان الجريمة)
+
+**2. السند القانوني:**
+   - نصوص المواد المؤيدة للدفاع
+
+**3. الطلبات:**
+   - طلب البراءة أو رفض الدعوى
+"""
 
     def generate_fallback_answer(self, user_query: str) -> str:
         """

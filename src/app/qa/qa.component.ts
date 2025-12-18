@@ -343,6 +343,7 @@ export class QaComponent {
 
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('session_id', this.sessionId);
 
     this.http.post<any>(this.uploadUrl, formData).subscribe({
       next: (response) => {

@@ -1,7 +1,7 @@
 import os
 import sqlite3
 import logging
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
@@ -45,7 +45,7 @@ from agents.retrieval_agent import RetrievalAgent
 from agents.answer_agent import AnswerAgent
 from agents.knowledge_agent import KnowledgeAgent
 # Define DB Path explicitly
-DB_PATH = r"C:\Users\Administrator\Desktop\MohamyMasry\law_database.db"
+DB_PATH = r"D:\law_database.db"
 
 # Initialize Agents
 llm = init_llm()
@@ -244,13 +244,13 @@ def home():
 # Document Upload & OCR Endpoint
 # =======================================================
 @app.post("/upload_document")
-async def upload_document(file: UploadFile = File(...)):
+async def upload_document(file: UploadFile = File(...), session_id: str = Form(None)):
     """
     Upload a legal document (PDF, image, or text) for OCR analysis.
     Extracts text and provides legal analysis.
     """
     try:
-        logger.info(f"📄 Document Upload: {file.filename} (Type: {file.content_type})")
+        logger.info(f"Document Upload: {file.filename} (Type: {file.content_type}) [Session: {session_id}]")
         
         # Read file content
         content = await file.read()
@@ -258,10 +258,25 @@ async def upload_document(file: UploadFile = File(...)):
         # Analyze document using AnswerAgent
         result = await answer_agent.analyze_document(content, file.filename, file.content_type)
         
+        analysis_text = result.get("analysis", "")
+        
+        # Save to chat history if session_id provided
+        if session_id and analysis_text:
+            if session_id not in CHAT_HISTORY:
+                CHAT_HISTORY[session_id] = []
+            CHAT_HISTORY[session_id].append({
+                "user": f"تحليل مستند: {file.filename}",
+                "bot": analysis_text
+            })
+            # Keep only last 10 turns
+            if len(CHAT_HISTORY[session_id]) > 10:
+                CHAT_HISTORY[session_id].pop(0)
+            logger.info(f"💾 Document analysis saved to session history [Session: {session_id}]")
+        
         return {
             "status": "success",
             "filename": file.filename,
-            "analysis": result.get("analysis", ""),
+            "analysis": analysis_text,
             "extracted_text": result.get("extracted_text", "")[:500],  # First 500 chars
             "full_text_length": len(result.get("extracted_text", ""))
         }
