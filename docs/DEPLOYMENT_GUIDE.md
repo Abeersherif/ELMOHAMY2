@@ -186,6 +186,26 @@ The SQLite database (`law_database.db`) is included in the repository. For produ
 
 ---
 
+## ⚠️ Critical: Large Database & Git LFS
+
+The `law_database.db` file is approx **1.4 GB**. Standard Git cannot handle this file size, so we use **Git LFS (Large File Storage)**.
+
+### For Render Deployment
+We have updated `render.yaml` to automatically pull the LFS file during build:
+```yaml
+buildCommand: git lfs install --skip-smudge && git lfs pull && pip install -r requirements.txt
+```
+
+### Troubleshooting Database Issues
+If you see errors like `sqlite3.DatabaseError: file is not a database` or `no such table`, it means Render only downloaded the **LFS pointer file** (1KB text file) instead of the actual 1.4GB database.
+
+**Fix:**
+1. Ensure your Render service is using the updated `render.yaml` configuration.
+2. In Render Settings → "Environment", ensure `PYTHON_VERSION` is set.
+3. If issues persist, you can manually trigger a deploy with "Clear Cache and Deploy".
+
+---
+
 ## ⚠️ Common Issues
 
 ### "GOOGLE_API_KEY not set"
