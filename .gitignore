@@ -1,67 +1,28 @@
-# See https://docs.github.com/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
+# Git ignore file for Mohamy Legal Assistant
 
-# Compiled output
-/dist
-/tmp
-/out-tsc
-/bazel-out
-
-# Node
-/node_modules
-npm-debug.log
-yarn-error.log
-
-# IDEs and editors
-.idea/
-.project
-.classpath
-.c9/
-*.launch
-.settings/
-*.sublime-workspace
-
-# Visual Studio Code
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-.history/*
-
-# Miscellaneous
-/.angular/cache
-.sass-cache/
-/connect.lock
-/coverage
-/libpeerconnection.log
-testem.log
-/typings
-__screenshots__/
-
-# System files
-.DS_Store
-Thumbs.db
-
-# Database files (large files that shouldn't be in Git)
+# Large files
+*.pdf
 *.db
-*.sqlite
-*.sqlite3
-law_database.db
-conversation_memory.db
 
-# Python
+# Dependencies
+node_modules/
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
+*.pyc
 .venv/
 venv/
-ENV/
-env/
-*.egg-info/
-.pytest_cache/
 
-# SQLite temporary files
-*.db-shm
-*.db-wal
+# Build outputs
+dist/
+.angular/
+
+# IDE
+.vscode/
+.idea/
+
+# Environment
+.env
+*.env.local
+
+# OS
+.DS_Store
+Thumbs.db
