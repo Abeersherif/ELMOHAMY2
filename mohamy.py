@@ -1,8 +1,11 @@
 import os
 import sqlite3
 import logging
+from pathlib import Path
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
 
@@ -44,8 +47,10 @@ from agents.router_agent import RouterAgent
 from agents.retrieval_agent import RetrievalAgent
 from agents.answer_agent import AnswerAgent
 from agents.knowledge_agent import KnowledgeAgent
-# Define DB Path explicitly
-DB_PATH = r"D:\law_database.db"
+
+# Define DB Path - use relative path for deployment
+BASE_DIR = Path(__file__).resolve().parent
+DB_PATH = os.getenv("DB_PATH", str(BASE_DIR / "law_database.db"))
 
 # Initialize Agents
 llm = init_llm()
@@ -67,6 +72,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ---------------------------
+# Static Files (for production deployment)
+# ---------------------------
+STATIC_DIR = BASE_DIR / "static"
+if STATIC_DIR.exists():
+    app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets")
+    logger.info(f"📁 Serving static files from {STATIC_DIR}")
 
 # ---------------------------
 # Models
@@ -304,3 +317,30 @@ def get_all_laws():
     except Exception as e:
         logger.error(f"❌ Error fetching law catalog: {e}")
         return {"categories": [], "error": str(e)}
+
+
+# =======================================================
+# Serve Angular SPA (catch-all route for production)
+# =======================================================
+@app.get("/{full_path:path}")
+async def serve_spa(full_path: str):
+    """
+    Serve Angular SPA for any non-API routes.
+    This enables client-side routing to work properly.
+    """
+    # Don't catch API routes
+    if full_path.startswith(("ask", "upload_document", "laws", "api")):
+        return {"error": "Not found"}
+    
+    # Serve static file if exists
+    static_file = STATIC_DIR / full_path
+    if static_file.exists() and static_file.is_file():
+        return FileResponse(static_file)
+    
+    # Serve index.html for SPA routing
+    index_file = STATIC_DIR / "index.html"
+    if index_file.exists():
+        return FileResponse(index_file)
+    
+    # Fallback to API root if no static files
+    return {"message": "Mohamy Legal Assistant API running successfully 🚀", "docs": "/docs"}
