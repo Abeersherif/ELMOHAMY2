@@ -9,6 +9,7 @@ interface ChatMessage {
   sender: 'user' | 'bot';
   text: string;
   articles?: Law[];
+  relatedTopics?: string[];
 }
 
 interface Law {
@@ -497,8 +498,6 @@ export class QaComponent {
       resp.stage ||
       (resp.needs_clarification ? 'clarification' : 'final_answer');
 
-    this.relatedTopics = resp.related_topics || [];
-
     if (stage === 'clarification') {
       const q =
         resp.clarification_question ||
@@ -582,6 +581,7 @@ export class QaComponent {
       sender: 'bot',
       text: finalText,
       articles: this.lastArticles.length > 0 ? this.lastArticles : undefined,
+      relatedTopics: resp.related_topics || [],
     });
   }
 

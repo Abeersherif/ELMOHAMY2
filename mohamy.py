@@ -458,11 +458,17 @@ async def ask(request: QueryRequest) -> Dict[str, Any]:
                 "message": "تم اختيار المواد الأعلى صلة من نتائج البحث",
                 "filtered_articles": filtered_articles,
             }
-            # Generate the final answer directly
-            final_answer = await answer_agent.generate_answer(
+            # Run answer + related topics in parallel (no extra latency)
+            answer_coro = answer_agent.generate_answer(
                 processed_query, retrieved,
                 rulings=rulings,
                 law_correction=law_existence_warning,
+            )
+            topics_coro = answer_agent.suggest_related_topics(
+                processed_query, retrieved
+            )
+            final_answer, related_topics = await asyncio.gather(
+                answer_coro, topics_coro
             )
             logger.info(f"⏱️ LLM answer: {(time.monotonic()-t_llm)*1000:.0f}ms")
             source = "database"
