@@ -442,20 +442,16 @@ async def ask(request: QueryRequest) -> Dict[str, Any]:
                               if w not in trivial and len(w) > 1]
                 relevant = []
                 for art in retrieved[:20]:
-                    # Check titel + law_name (NOT details — too many false
-                    # positives from legal boilerplate).
-                    art_text = _norm(
-                        (art.get("titel") or "") + " "
-                        + (art.get("law_name") or "")
-                    )
+                    # Check ONLY titel (NOT law_name or details — too many false
+                    # positives from broad category names and legal boilerplate).
+                    art_text = _norm(art.get("titel") or "")
                     required_hits = min(2, len(q_keywords)) if q_keywords else 1
                     hits = sum(1 for kw in q_keywords if kw in art_text)
                     if hits >= required_hits:
                         relevant.append(art)
                     if len(relevant) >= 5:
                         break
-                # Fallback to top 2 if strict filter fails so the UI still shows references
-                filtered_articles = relevant if relevant else retrieved[:2]
+                filtered_articles = relevant if relevant else []
             verification = {
                 "verified": True,
                 "relevance_score": 7,
