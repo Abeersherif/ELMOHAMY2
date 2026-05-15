@@ -117,6 +117,7 @@ def init_schema() -> None:
                     logger.info(f"📒 Migrated audit_log: added {col_name} column")
                 except sqlite3.OperationalError as e:
                     logger.warning(f"audit_log migration ({col_name}) skipped: {e}")
+
     logger.info(f"📒 Runtime store ready at {RUNTIME_DB_PATH}")
 
 

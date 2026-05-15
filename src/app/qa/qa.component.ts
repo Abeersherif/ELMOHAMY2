@@ -9,7 +9,6 @@ interface ChatMessage {
   sender: 'user' | 'bot';
   text: string;
   articles?: Law[];
-  relatedTopics?: string[];
 }
 
 interface Law {
@@ -59,7 +58,6 @@ interface AskResponse {
   };
   cancelled_count?: number;
   rulings_count?: number;
-  related_topics?: string[];
   stage?:
   | 'clarification'
   | 'final_answer'
@@ -110,7 +108,6 @@ export class QaComponent {
   lawCategories: any[] = [];
   isLoadingCategories = false;
 
-  relatedTopics: string[] = [];
   lastArticles: Law[] = [];
 
   sessions: ChatSession[] = [];
@@ -281,7 +278,6 @@ export class QaComponent {
     this.chatHistory = [];
     this.lastArticles = [];
     this.clarificationOptions = [];
-    this.relatedTopics = [];
     this.userInput = '';
     this.cdr.detectChanges();
   }
@@ -581,7 +577,6 @@ export class QaComponent {
       sender: 'bot',
       text: finalText,
       articles: this.lastArticles.length > 0 ? this.lastArticles : undefined,
-      relatedTopics: resp.related_topics || [],
     });
   }
 
