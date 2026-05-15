@@ -119,9 +119,8 @@ class AnswerAgent:
 
         text = AnswerAgent._convert_md_tables(text)
 
-        # Strip standalone "---" separator lines entirely (LLM tends to add them
-        # between sections; they look like ugly horizontal rules in the chat bubble).
-        text = re.sub(r"(?m)^---+\s*$", "", text)
+        # Strip standalone "---", "***", or "___" separator lines entirely
+        text = re.sub(r"(?m)^[-*_]{3,}\s*$", "", text)
 
         # Ensure blank line BEFORE bold headers, AFTER bold headers
         text = re.sub(r"([^\n])\n\*\*", r"\1\n\n**", text)
