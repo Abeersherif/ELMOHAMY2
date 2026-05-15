@@ -447,12 +447,14 @@ async def ask(request: QueryRequest) -> Dict[str, Any]:
                         (art.get("titel") or "") + " "
                         + (art.get("law_name") or "")
                     )
+                    required_hits = min(2, len(q_keywords)) if q_keywords else 1
                     hits = sum(1 for kw in q_keywords if kw in art_text)
-                    if hits >= 2:
+                    if hits >= required_hits:
                         relevant.append(art)
                     if len(relevant) >= 5:
                         break
-                filtered_articles = relevant if relevant else []
+                # Fallback to top 2 if strict filter fails so the UI still shows references
+                filtered_articles = relevant if relevant else retrieved[:2]
             verification = {
                 "verified": True,
                 "relevance_score": 7,
