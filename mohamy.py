@@ -391,10 +391,8 @@ async def ask(request: QueryRequest) -> Dict[str, Any]:
             f"⚠️ Precedent warnings: {len(precedent_warnings)} of {len(rulings)} rulings flagged"
         )
 
-        # Skip cosmetic LLM calls (initial summary + related topics).
-        # Frontend treats these as optional fallbacks.
+        # Skip initial summary (frontend treats it as optional).
         initial_resp = {"summary": None, "steps": []}
-        related_topics: List[str] = []
 
         if retrieved:
             t_llm = time.monotonic()
@@ -461,10 +459,17 @@ async def ask(request: QueryRequest) -> Dict[str, Any]:
                 "message": "تم اختيار المواد الأعلى صلة من نتائج البحث",
                 "filtered_articles": filtered_articles,
             }
-            final_answer = await answer_agent.generate_answer(
+            # Run answer + related topics in parallel (no extra latency)
+            answer_coro = answer_agent.generate_answer(
                 processed_query, retrieved,
                 rulings=rulings,
                 law_correction=law_existence_warning,
+            )
+            topics_coro = answer_agent.suggest_related_topics(
+                processed_query, retrieved
+            )
+            final_answer, related_topics = await asyncio.gather(
+                answer_coro, topics_coro
             )
             logger.info(f"⏱️ LLM answer: {(time.monotonic()-t_llm)*1000:.0f}ms")
             source = "database"
@@ -477,6 +482,7 @@ async def ask(request: QueryRequest) -> Dict[str, Any]:
                 "filtered_articles": [],
             }
             filtered_articles = []
+            related_topics = []
             source = "llm_only"
 
         shaped = [_shape_article(a) for a in filtered_articles[:5]]
