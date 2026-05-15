@@ -16,7 +16,7 @@ services:
     name: mohamy-frontend
     env: static
     buildCommand: npm install && npm run build
-    staticPublishPath: ./dist/mohamy-masry/browser
+    staticPublishPath: ./dist/mahami-masry/browser
     headers:
       - path: /*
         name: Cache-Control

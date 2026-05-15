@@ -1,38 +1,44 @@
-# Use Python slim image
-FROM python:3.11-slim
-
-# Set working directory
-WORKDIR /app
-
-# Install Node.js for Angular build
-RUN apt-get update && apt-get install -y \
-    nodejs \
-    npm \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements first for caching
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy package files and install npm dependencies
-COPY package*.json ./
-RUN npm install
-
-# Copy all source code
-COPY . .
-
-# Build Angular frontend
+# ---------- Stage 1: build Angular frontend ----------
+FROM node:22-bookworm-slim AS frontend
+WORKDIR /build
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY angular.json tsconfig*.json ./
+COPY .postcssrc.json ./
+COPY src ./src
+COPY public ./public
 RUN npm run build
 
-# Create static directory and copy built files
-RUN mkdir -p /app/static
-RUN cp -r dist/mohamy-masry/browser/* /app/static/
+# ---------- Stage 2: Python runtime ----------
+FROM python:3.11-slim AS runtime
 
-# Expose port
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+# Create non-root user
+RUN groupadd -r mohamy && useradd -r -g mohamy -d /app -s /usr/sbin/nologin mohamy
+
+WORKDIR /app
+
+# Install Python dependencies
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy backend source
+COPY mohamy.py utils.py ./
+COPY agents ./agents
+
+# Copy built frontend into /app/static
+COPY --from=frontend /build/dist/mahami-masry/browser ./static
+
+# Database path (mount via volume or provide via DB_PATH env)
+# law_database.db must be made available at runtime — do NOT bake into image.
+
+RUN chown -R mohamy:mohamy /app
+USER mohamy
+
 EXPOSE 7860
-
-# Set environment variable for port
 ENV PORT=7860
 
-# Run the application
-CMD ["uvicorn", "mohamy:app", "--host", "0.0.0.0", "--port", "7860"]
+CMD ["sh", "-c", "uvicorn mohamy:app --host 0.0.0.0 --port ${PORT:-7860}"]

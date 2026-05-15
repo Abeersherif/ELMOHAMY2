@@ -1,146 +1,397 @@
-<div class="w-full max-w-5xl mx-auto bg-slate-900/70 rounded-2xl shadow-2xl border border-slate-800 p-5 text-slate-50">
-  <div class="flex justify-between items-center mb-3">
-    <div class="flex-grow"></div>
+<div class="w-full h-full flex flex-col md:flex-row gap-2 sm:gap-3 md:gap-4 relative" dir="rtl">
 
-    <h2 class="text-2xl font-semibold text-right">
-      اسأل المحامي المصري
-    </h2>
-  </div>
+  <div *ngIf="sidebarOpen"
+    class="md:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-30"
+    (click)="toggleSidebar()"></div>
 
-  <div class="grid gap-4 lg:grid-rows-[1fr_auto] min-h-[430px]">
+  <aside
+    [ngClass]="sidebarOpen
+      ? 'flex fixed inset-y-2 right-2 z-40 max-w-[calc(100vw-1rem)] md:relative md:inset-auto md:right-auto md:z-auto md:max-w-none'
+      : 'hidden md:flex'"
+    class="flex-col w-64 md:w-60 lg:w-64 shrink-0
+           bg-slate-900/95 md:bg-slate-900/70 rounded-2xl shadow-2xl border border-slate-800 p-3 text-slate-50
+           overflow-hidden">
 
-    <div
-      class="chat-container border border-slate-700 rounded-xl h-72 lg:h-80 overflow-y-auto p-3 bg-slate-900/70 space-y-2">
-      <div *ngFor="let message of chatHistory" [ngClass]="message.sender === 'user' ? 'text-right' : 'text-left'">
+    <div class="flex items-center justify-between mb-2 md:mb-0">
+      <button (click)="toggleSidebar()" class="md:hidden text-slate-300 hover:text-white p-1" title="إغلاق">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+      <span class="text-xs text-slate-400 md:hidden">المحادثات</span>
+    </div>
+
+    <button (click)="newChat()"
+      class="shrink-0 w-full px-3 py-2 rounded-xl bg-yellow-400 text-slate-900 font-bold text-sm
+             hover:bg-yellow-300 transition-all duration-200 shadow-md hover:shadow-lg
+             flex items-center justify-center gap-2">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+        <path fill-rule="evenodd"
+          d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z"
+          clip-rule="evenodd" />
+      </svg>
+      <span>محادثة جديدة</span>
+    </button>
+
+    <div class="text-xs text-slate-400 mt-3 mb-2 px-1 shrink-0">محادثات سابقة</div>
+
+    <div class="flex-1 min-h-0 overflow-y-auto space-y-1 custom-scrollbar pr-1">
+      <div *ngIf="sessions.length === 0" class="text-xs text-slate-500 text-center mt-4">
+        لا توجد محادثات سابقة بعد
+      </div>
+      <div *ngFor="let s of sessions" class="group relative">
+        <button (click)="switchSession(s.session_id)"
+          [ngClass]="s.session_id === sessionId
+            ? 'bg-yellow-400/90 text-slate-900 font-semibold'
+            : 'bg-slate-800/40 hover:bg-slate-800 text-slate-200'"
+          class="w-full text-right px-3 py-2 rounded-lg text-sm transition-colors
+                 border border-transparent hover:border-slate-700 overflow-hidden">
+          <div class="truncate">{{ s.title }}</div>
+          <div class="text-[10px] opacity-70 mt-0.5">{{ s.turns }} رسالة</div>
+        </button>
+        <button (click)="confirmDelete($event, s)"
+          class="absolute top-1.5 left-1.5 opacity-100 md:opacity-0 md:group-hover:opacity-100
+                 transition-opacity p-1 rounded hover:bg-red-500/20 text-red-400"
+          title="حذف">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd"
+              d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9z"
+              clip-rule="evenodd" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <div class="flex-1 min-w-0 min-h-0 bg-slate-900/70 rounded-2xl shadow-2xl border border-slate-800
+              p-3 sm:p-4 md:p-5 text-slate-50 flex flex-col overflow-hidden">
+
+    <div class="shrink-0 flex justify-between items-center mb-2 sm:mb-3 gap-2">
+      <button (click)="toggleSidebar()" class="md:hidden text-slate-300 hover:text-white p-1 shrink-0"
+        title="المحادثات">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+      <div class="flex-grow"></div>
+      <h2 class="text-lg sm:text-xl md:text-2xl font-semibold text-right truncate">
+        اسأل المساعد القانوني
+      </h2>
+    </div>
+
+    <div class="flex-1 min-h-0 chat-container border border-slate-700 rounded-xl
+                overflow-y-auto custom-scrollbar p-3 sm:p-4 md:p-5 bg-slate-900/70 space-y-3 mb-2 sm:mb-3 text-[15px] sm:text-base leading-relaxed">
+
+      <div *ngFor="let message of chatHistory; let i = index"
+        [ngClass]="message.sender === 'user' ? 'text-right' : 'text-left'">
         <div
           [ngClass]="message.sender === 'user'
-            ? 'inline-block px-3 py-2 rounded-2xl bg-blue-600 text-white shadow-sm max-w-[80%] whitespace-pre-line'
-            : 'inline-block px-3 py-2 rounded-2xl bg-slate-200 text-slate-900 shadow-sm max-w-[80%] whitespace-pre-line text-right'"
+            ? 'inline-block px-4 py-2.5 rounded-2xl bg-blue-600 text-white shadow-sm max-w-[92%] sm:max-w-[80%] whitespace-pre-line break-words relative group'
+            : 'inline-block px-4 py-3 rounded-2xl bg-slate-200 text-slate-900 shadow-sm max-w-[96%] sm:max-w-[90%] whitespace-pre-line break-words text-right relative group'"
           dir="rtl">
           <span [innerHTML]="message.text"></span>
+
+          <button *ngIf="message.sender === 'user' && !isLoading"
+            (click)="editMessage(i)"
+            class="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity
+                   bg-amber-500 hover:bg-amber-600 text-white rounded-full p-1 shadow-md"
+            title="تعديل الرسالة">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
+              <path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" />
+            </svg>
+          </button>
+
+          <button *ngIf="message.sender === 'bot' && reportingIndex !== i"
+            (click)="reportMessage(i)"
+            class="absolute -top-2 -left-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity
+                   bg-red-500 hover:bg-red-600 text-white rounded-full p-1 shadow-md"
+            title="أبلغ عن إجابة خاطئة">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd"
+                d="M3 3a1 1 0 011-1h12a1 1 0 01.78 1.625L13.28 8l3.5 4.375A1 1 0 0116 14H4v3a1 1 0 11-2 0V3z"
+                clip-rule="evenodd" />
+            </svg>
+          </button>
+
+          <div *ngIf="message.sender === 'bot' && reportingIndex === i"
+            class="mt-3 pt-3 border-t border-slate-300 text-sm" dir="rtl">
+            <div class="font-semibold text-slate-700 mb-2">ما المشكلة في هذه الإجابة؟</div>
+            <textarea [(ngModel)]="reportText" rows="2"
+              placeholder="معلومة خاطئة، مادة غير صحيحة، إلخ... (اختياري)"
+              class="w-full rounded-lg border border-slate-400 bg-white text-slate-900 p-2 text-xs
+                     focus:ring-2 focus:ring-red-400 focus:outline-none resize-none"></textarea>
+            <div class="flex flex-wrap justify-end gap-2 mt-2">
+              <button (click)="cancelReport()"
+                class="px-3 py-1 rounded bg-slate-400 text-white text-xs hover:bg-slate-500">
+                إلغاء
+              </button>
+              <button (click)="submitReport()"
+                class="px-3 py-1 rounded bg-red-600 text-white text-xs hover:bg-red-500 font-semibold">
+                إرسال البلاغ
+              </button>
+            </div>
+          </div>
+
+          <div *ngIf="message.sender === 'bot' && message.articles && message.articles.length > 0"
+            class="mt-3 pt-3 border-t border-slate-300">
+            <div class="text-xs sm:text-sm font-semibold text-slate-700 mb-2">
+              هذه أمثلة من النصوص القانونية ذات الصلة بسؤالك:
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <button *ngFor="let art of message.articles; let idx = index"
+                (click)="explainArticle(art)" [disabled]="isLoading"
+                [ngClass]="art.is_cancelled
+                  ? 'bg-red-50 hover:bg-red-100 active:bg-red-200 border-red-300 text-slate-800'
+                  : 'bg-blue-50 hover:bg-blue-100 active:bg-blue-200 border-blue-200 text-slate-800'"
+                class="text-right text-xs sm:text-sm px-3 py-2 rounded-lg border transition-colors
+                       disabled:opacity-50 disabled:cursor-not-allowed break-words whitespace-normal flex items-start gap-2"
+                [attr.title]="art.is_cancelled
+                  ? ('⚠️ مادة ملغاة — ' + (art.cancellation_signal || ''))
+                  : 'اضغط لعرض شرح هذه المادة'">
+                <span *ngIf="art.is_cancelled"
+                  class="shrink-0 inline-block bg-red-600 text-white text-[10px] font-bold rounded px-1.5 py-0.5">
+                  ملغاة
+                </span>
+                <span class="min-w-0">
+                  <span class="text-blue-700 font-bold ml-1">{{ idx + 1 }})</span>
+                  {{ art.law_name || art.titel }}<ng-container *ngIf="art.number"> (مادة: {{ art.number }})</ng-container><ng-container *ngIf="art.main_category"> – {{ art.main_category }}</ng-container>
+                </span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div *ngIf="chatHistory.length === 0" class="text-center text-slate-500 mt-6 text-sm">
-        اكتب سؤالك القانوني في الأسفل، وسيقوم النظام بتمريره إلى الوكلاء (التحليل – الاسترجاع – الإجابة).
+      <div *ngIf="chatHistory.length === 0" class="text-center text-slate-500 mt-6 text-xs sm:text-sm px-4">
+        اكتب سؤالك القانوني في الأسفل، وسيتم تحليله بواسطة عدة وكلاء (التوجيه – الاسترجاع – الإجابة).
       </div>
 
-
-      <div *ngIf="clarificationOptions.length > 0" class="mt-4 flex flex-wrap gap-2 justify-start" dir="rtl">
+      <div *ngIf="clarificationOptions.length > 0" class="mt-3 flex flex-wrap gap-2 justify-start" dir="rtl">
         <button *ngFor="let opt of clarificationOptions" (click)="chooseOption(opt)"
-          class="px-3 py-1 rounded-full border border-slate-500 bg-slate-100 text-slate-900 text-sm hover:bg-blue-100 hover:text-blue-900 transition-colors">
+          class="px-3 py-1 rounded-full border border-slate-500 bg-slate-100 text-slate-900 text-xs sm:text-sm
+                 hover:bg-blue-100 hover:text-blue-900 transition-colors break-words max-w-full">
           {{ opt }}
         </button>
       </div>
 
-
-      <div *ngIf="relatedTopics && relatedTopics.length > 0" class="mt-4 space-y-2" dir="rtl">
-        <div class="text-xs text-slate-300 text-right">
-          مواضيع ذات صلة:
-        </div>
+      <div *ngIf="relatedTopics && relatedTopics.length > 0" class="mt-3 space-y-2" dir="rtl">
+        <div class="text-xs text-slate-300 text-right">مواضيع ذات صلة:</div>
         <div class="flex flex-wrap gap-2 justify-start">
-          <button *ngFor="let topic of relatedTopics" (click)="chooseOption(topic)" class="px-3 py-1 rounded-full border border-blue-500/70 bg-slate-900 text-blue-200 text-xs
-                   hover:bg-blue-600/20 hover:text-blue-100 transition-colors">
+          <button *ngFor="let topic of relatedTopics" (click)="chooseOption(topic)"
+            class="px-3 py-1 rounded-full border border-blue-500/70 bg-slate-900 text-blue-200 text-[11px] sm:text-xs
+                   hover:bg-blue-600/20 hover:text-blue-100 transition-colors break-words max-w-full">
             {{ topic }}
           </button>
         </div>
       </div>
     </div>
 
+    <div class="shrink-0 w-full flex items-end gap-2 border border-slate-700 rounded-xl bg-slate-900/80 px-2 py-1.5" dir="rtl">
 
-    <div class="border border-slate-700 rounded-xl bg-slate-900/80 p-3 space-y-3">
-      <label class="block text-sm text-slate-300 text-right mb-1">
-        صياغة السؤال القانوني
-      </label>
-      <textarea [(ngModel)]="userInput" (keypress)="onKeyPress($event)" rows="4" class="w-full rounded-xl border border-slate-700 bg-slate-950/80 px-3 py-2
+      <textarea [(ngModel)]="userInput" (keypress)="onKeyPress($event)" rows="1"
+        class="flex-1 min-w-0 rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5
                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-               text-sm resize-none"
-        placeholder="مثال: ما هي الخطوات القانونية الصحيحة لفسخ عقد الإيجار في مصر؟"></textarea>
+               text-sm resize-none leading-snug"
+        placeholder="اكتب سؤالك القانوني هنا..."></textarea>
 
-      <div class="flex justify-between items-center gap-3" dir="rtl">
-
+      <div class="flex items-center gap-1 shrink-0">
 
         <button (click)="startVoiceRecognition()"
-          class="px-4 py-2 rounded-xl transition-all duration-200 ease-out shadow-md hover:shadow-lg transform hover:-translate-y-[1px] flex items-center gap-2"
-          [ngClass]="isRecording ? 'bg-red-600 text-white animate-pulse' : 'bg-slate-700 text-slate-200 hover:bg-slate-600'">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+          class="p-2 rounded-lg transition-all flex items-center justify-center"
+          [ngClass]="isRecording ? 'bg-red-600 text-white animate-pulse' : 'bg-slate-700 text-slate-200 hover:bg-slate-600'"
+          [attr.title]="isRecording ? 'جاري الاستماع...' : 'تحدث'">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd"
               d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z"
               clip-rule="evenodd" />
           </svg>
-          <span *ngIf="isRecording">جاري الاستماع...</span>
-          <span *ngIf="!isRecording">تحدث</span>
         </button>
 
-
-        <button (click)="toggleBrowseModal()" class="px-3 py-2 rounded-xl bg-purple-600 text-white font-medium
-         hover:bg-purple-500 active:bg-purple-700
-         transition-all duration-200 ease-out
-         shadow-md hover:shadow-lg transform hover:-translate-y-[1px] flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <button (click)="toggleBrowseModal()"
+          class="p-2 rounded-lg bg-purple-600 text-white hover:bg-purple-500 transition-all"
+          title="تصفح القوانين">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
           </svg>
-          تصفح
         </button>
 
+        <input type="file" #fileInput (change)="onFileSelected($event)" accept=".txt,.png,.jpg,.jpeg,.pdf" style="display:none">
 
-        <input type="file" #fileInput (change)="onFileSelected($event)" accept=".txt,.png,.jpg,.jpeg,.pdf"
-          style="display: none">
-
-
-        <button (click)="fileInput.click()" class="px-4 py-2 rounded-xl bg-green-600 text-white font-medium
-                       hover:bg-green-500 active:bg-green-700
-                       transition-all duration-200 ease-out
-                       shadow-md hover:shadow-lg transform hover:-translate-y-[1px] flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+        <button (click)="fileInput.click()"
+          class="p-2 rounded-lg bg-green-600 text-white hover:bg-green-500 transition-all"
+          title="رفع مستند">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd"
               d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z"
               clip-rule="evenodd" />
           </svg>
-          رفع مستند
         </button>
 
-        <button (click)="sendMessage()" class="px-6 py-2 rounded-xl bg-blue-600 text-white font-medium
-                 hover:bg-blue-500 active:bg-blue-700
-                 transition-all duration-200 ease-out
-                 shadow-md hover:shadow-lg transform hover:-translate-y-[1px]" style="direction: ltr;">
-          إرسال السؤال
+        <button *ngIf="!isLoading" (click)="sendMessage()"
+          [disabled]="!userInput.trim() || needsConsent"
+          class="px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition-all text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed">
+          إرسال
+        </button>
+        <button *ngIf="isLoading" (click)="stopGeneration()"
+          class="px-3 py-2 rounded-lg bg-red-600 text-white hover:bg-red-500 transition-all text-xs font-medium flex items-center gap-1"
+          title="إيقاف التوليد">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+            <rect x="5" y="5" width="10" height="10" rx="1" />
+          </svg>
+          إيقاف
         </button>
       </div>
     </div>
   </div>
 </div>
 
-<div *ngIf="showBrowseModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+<div *ngIf="showBrowseModal"
+  class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4"
   (click)="closeBrowseModal()">
   <div
-    class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-4xl h-[80vh] flex flex-col shadow-2xl overflow-hidden"
+    class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-4xl max-h-[90dvh] flex flex-col shadow-2xl overflow-hidden"
     (click)="$event.stopPropagation()">
-    <div class="flex justify-between items-center p-4 border-b border-slate-700 bg-slate-800/50">
-      <button (click)="closeBrowseModal()" class="text-slate-400 hover:text-white"><svg
-          xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <div class="shrink-0 flex justify-between items-center p-3 sm:p-4 border-b border-slate-700 bg-slate-800/50">
+      <button (click)="closeBrowseModal()" class="text-slate-400 hover:text-white">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 sm:h-6 sm:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-        </svg></button>
-      <h3 class="text-xl font-bold text-white">تصفح القوانين المصرية</h3>
+        </svg>
+      </button>
+      <h3 class="text-base sm:text-xl font-bold text-white">تصفح القوانين المصرية</h3>
     </div>
-    <div class="flex-1 overflow-y-auto p-6" dir="rtl">
-      <div *ngIf="isLoadingCategories" class="flex justify-center items-center h-full">
-        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+    <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-3 sm:p-6" dir="rtl">
+      <div *ngIf="isLoadingCategories" class="flex justify-center items-center h-32">
+        <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500"></div>
       </div>
-      <div *ngIf="!isLoadingCategories && lawCategories.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div *ngIf="!isLoadingCategories && lawCategories.length > 0"
+        class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
         <div *ngFor="let cat of lawCategories"
-          class="bg-slate-800/50 rounded-xl p-4 border border-slate-700 hover:border-blue-500/50 transition-colors">
-          <div class="flex justify-between items-center mb-3 border-b border-slate-700 pb-2"><span
-              class="text-xs bg-blue-900/50 text-blue-200 px-2 py-1 rounded-full">{{ cat.count }} قانون</span>
-            <h4 class="text-lg font-bold text-blue-400">{{ cat.name }}</h4>
+          class="bg-slate-800/50 rounded-xl p-3 sm:p-4 border border-slate-700 hover:border-blue-500/50 transition-colors min-w-0">
+          <div class="flex justify-between items-center mb-2 sm:mb-3 border-b border-slate-700 pb-2 gap-2">
+            <span class="text-[10px] sm:text-xs bg-blue-900/50 text-blue-200 px-2 py-1 rounded-full shrink-0">
+              {{ cat.count }} قانون
+            </span>
+            <h4 class="text-sm sm:text-lg font-bold text-blue-400 truncate min-w-0">{{ cat.name }}</h4>
           </div>
-          <ul class="space-y-1 max-h-40 overflow-y-auto custom-scrollbar">
-            <li *ngFor="let law of cat.laws" class="text-sm text-slate-300 hover:text-white flex items-center gap-2">
-              <span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span>{{ law }}
+          <ul class="space-y-1 max-h-32 sm:max-h-40 overflow-y-auto custom-scrollbar">
+            <li *ngFor="let law of cat.laws"
+              class="text-xs sm:text-sm text-slate-300 hover:text-white flex items-center gap-2 min-w-0">
+              <span class="w-1.5 h-1.5 rounded-full bg-slate-600 shrink-0"></span>
+              <span class="truncate">{{ law }}</span>
             </li>
           </ul>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<div *ngIf="needsConsent"
+  class="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-3 sm:p-4">
+  <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg max-h-[90dvh] overflow-y-auto custom-scrollbar p-5 sm:p-6 shadow-2xl"
+    dir="rtl">
+    <div class="flex items-center gap-3 mb-3 sm:mb-4">
+      <div class="p-2 rounded-full bg-yellow-400/20 text-yellow-400 shrink-0">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 sm:h-6 sm:w-6" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd"
+            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2h-1V9z"
+            clip-rule="evenodd" />
+        </svg>
+      </div>
+      <h3 class="text-lg sm:text-xl font-bold text-white">قبل البدء</h3>
+    </div>
+    <p class="text-xs sm:text-sm text-slate-300 mb-4 leading-relaxed">
+      المساعد القانوني المصري يقدم <strong class="text-amber-300">معلومات قانونية عامة</strong> بمساعدة الذكاء الاصطناعي،
+      وليس بديلاً عن استشارة محامٍ مرخّص. يستخدم النظام مزوّد ذكاء اصطناعي (Google) خارج مصر لمعالجة الاستفسارات.
+    </p>
+    <div class="space-y-3 mb-5 text-xs sm:text-sm">
+      <label class="flex items-start gap-2 cursor-pointer">
+        <input type="checkbox" [(ngModel)]="consentAge" class="mt-1 accent-yellow-400 shrink-0" />
+        <span class="text-slate-200">أؤكد أن عمري <strong>18 سنة فأكثر</strong>.</span>
+      </label>
+      <label class="flex items-start gap-2 cursor-pointer">
+        <input type="checkbox" [(ngModel)]="consentPrivacy" class="mt-1 accent-yellow-400 shrink-0" />
+        <span class="text-slate-200">
+          أوافق على <a routerLink="/privacy" class="text-yellow-400 underline">سياسة الخصوصية</a>
+          و<a routerLink="/terms" class="text-yellow-400 underline">شروط الاستخدام</a>،
+          وعلى معالجة استفساراتي وإرسالها إلى مزوّد الذكاء الاصطناعي خارج مصر.
+        </span>
+      </label>
+    </div>
+    <button (click)="acceptConsent()" [disabled]="!consentAge || !consentPrivacy"
+      class="w-full px-4 py-3 rounded-xl bg-yellow-400 text-slate-900 font-bold
+             hover:bg-yellow-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md text-sm sm:text-base">
+      أوافق وأتابع
+    </button>
+  </div>
+</div>
+
+<div *ngIf="pendingUploadFile"
+  class="fixed inset-0 z-[55] flex items-center justify-center bg-black/70 backdrop-blur-sm p-3 sm:p-4"
+  (click)="cancelUploadConsent()">
+  <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md max-h-[90dvh] overflow-y-auto custom-scrollbar p-5 sm:p-6 shadow-2xl"
+    (click)="$event.stopPropagation()" dir="rtl">
+    <div class="flex items-center gap-3 mb-3">
+      <div class="p-2 rounded-full bg-green-500/20 text-green-400 shrink-0">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 sm:h-6 sm:w-6" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd"
+            d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"
+            clip-rule="evenodd" />
+        </svg>
+      </div>
+      <h3 class="text-base sm:text-lg font-bold text-white">رفع مستند</h3>
+    </div>
+    <p class="text-xs sm:text-sm text-slate-300 mb-3 leading-relaxed">
+      المستند <strong class="text-amber-300">سيُرسَل إلى مزوّد ذكاء اصطناعي خارج مصر</strong>. يرجى التأكد من:
+    </p>
+    <ul class="text-xs text-slate-400 mb-5 list-disc pr-5 space-y-1">
+      <li>عدم احتواء المستند على بيانات حساسة لا ترغب في معالجتها.</li>
+      <li>أنك تملك الحق في معالجة بيانات أي أطراف أخرى مذكورة فيه.</li>
+      <li>أن التحليل المُقدّم معلومات عامة وليس استشارة قانونية رسمية.</li>
+    </ul>
+    <div class="flex flex-wrap justify-end gap-2">
+      <button (click)="cancelUploadConsent()"
+        class="px-4 py-2 rounded-lg bg-slate-700 text-slate-200 hover:bg-slate-600 text-sm">
+        إلغاء
+      </button>
+      <button (click)="acceptUploadConsent()"
+        class="px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-500 text-sm font-semibold">
+        أوافق وارفع
+      </button>
+    </div>
+  </div>
+</div>
+
+<div *ngIf="pendingDeleteSession"
+  class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4"
+  (click)="cancelDelete()">
+  <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md max-h-[90dvh] overflow-y-auto custom-scrollbar p-5 sm:p-6 shadow-2xl"
+    (click)="$event.stopPropagation()" dir="rtl">
+    <div class="flex items-center gap-3 mb-3">
+      <div class="p-2 rounded-full bg-red-500/20 text-red-400 shrink-0">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 sm:h-6 sm:w-6" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd"
+            d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+            clip-rule="evenodd" />
+        </svg>
+      </div>
+      <h3 class="text-base sm:text-lg font-bold text-white">حذف المحادثة؟</h3>
+    </div>
+    <p class="text-xs sm:text-sm text-slate-300 mb-5 leading-relaxed break-words">
+      هل أنت متأكد من حذف
+      <strong class="text-yellow-400">"{{ pendingDeleteSession.title }}"</strong>؟
+      <br />لا يمكن التراجع عن هذا الإجراء.
+    </p>
+    <div class="flex flex-wrap justify-end gap-2">
+      <button (click)="cancelDelete()"
+        class="px-4 py-2 rounded-lg bg-slate-700 text-slate-200 hover:bg-slate-600 text-sm">
+        إلغاء
+      </button>
+      <button (click)="proceedDelete()"
+        class="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-500 text-sm font-bold shadow-md">
+        حذف
+      </button>
     </div>
   </div>
 </div>

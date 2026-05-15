@@ -1,0 +1,178 @@
+<div class="w-full h-full max-w-4xl mx-auto bg-slate-900/70 rounded-2xl shadow-2xl border border-slate-800 p-4 sm:p-5 md:p-8 text-slate-100 overflow-y-auto custom-scrollbar" dir="rtl">
+
+  <div class="flex items-baseline justify-between mb-1">
+    <h1 class="text-2xl md:text-3xl font-extrabold text-yellow-400">سياسة الخصوصية</h1>
+    <span class="text-xs text-slate-400">آخر تحديث: {{ lastUpdated }}</span>
+  </div>
+
+  <p class="text-sm text-slate-300 leading-relaxed mb-4">
+    تشرح هذه السياسة كيف يقوم تطبيق <strong>"المساعد القانوني المصري"</strong> بجمع ومعالجة بياناتك،
+    وفقاً لـ<strong>قانون حماية البيانات الشخصية المصري رقم 151 لسنة 2020</strong>.
+  </p>
+
+  <p class="text-xs text-slate-400 mb-3">اضغط على أي قسم لعرض تفاصيله.</p>
+
+  <div class="space-y-2">
+
+    <!-- 1 -->
+    <div class="bg-slate-800/40 rounded-lg overflow-hidden border border-slate-700/50">
+      <button (click)="toggle(1)"
+        class="w-full flex justify-between items-center px-4 py-3 text-right hover:bg-slate-800/70 transition">
+        <span class="text-yellow-400 font-bold text-sm">1. هوية المتحكم في البيانات</span>
+        <span class="text-slate-400 text-xs">{{ isOpen(1) ? '−' : '+' }}</span>
+      </button>
+      <div *ngIf="isOpen(1)" class="px-4 pb-4 text-sm text-slate-300 leading-relaxed">
+        المتحكم: <strong>[اسم الشركة / المالك]</strong> — <strong>[رقم السجل التجاري]</strong>.<br>
+        العنوان: <strong>[العنوان البريدي]</strong>.<br>
+        البريد: <a href="mailto:privacy@example.com" class="text-yellow-400 underline">privacy@example.com</a>.
+      </div>
+    </div>
+
+    <!-- 2 -->
+    <div class="bg-slate-800/40 rounded-lg overflow-hidden border border-slate-700/50">
+      <button (click)="toggle(2)"
+        class="w-full flex justify-between items-center px-4 py-3 text-right hover:bg-slate-800/70 transition">
+        <span class="text-yellow-400 font-bold text-sm">2. البيانات التي نجمعها</span>
+        <span class="text-slate-400 text-xs">{{ isOpen(2) ? '−' : '+' }}</span>
+      </button>
+      <div *ngIf="isOpen(2)" class="px-4 pb-4 text-sm text-slate-300 leading-relaxed">
+        <ul class="list-disc pr-6 space-y-1">
+          <li><strong>محتوى المحادثات:</strong> أسئلتك وإجابات النظام والمستندات المرفوعة.</li>
+          <li><strong>معرّف الجلسة:</strong> رقم عشوائي يُنشأ في متصفحك (UUID).</li>
+          <li><strong>بيانات تقنية:</strong> IP، نوع المتصفح، توقيت الطلبات (لأغراض الأمان والتدقيق).</li>
+          <li><strong>سجل القبول:</strong> توثيق موافقتك على هذه السياسة.</li>
+        </ul>
+        <p class="text-amber-300 mt-2 text-xs">
+          ⚠️ يُحذَّر المستخدم من مشاركة بيانات حساسة في المحادثات. يقوم النظام بإخفاء بعض الأنماط
+          (أرقام قومية، تليفونات، بريد، بطاقات) تلقائياً في سجلات التدقيق.
+        </p>
+      </div>
+    </div>
+
+    <!-- 3 -->
+    <div class="bg-slate-800/40 rounded-lg overflow-hidden border border-slate-700/50">
+      <button (click)="toggle(3)"
+        class="w-full flex justify-between items-center px-4 py-3 text-right hover:bg-slate-800/70 transition">
+        <span class="text-yellow-400 font-bold text-sm">3. الأساس القانوني والأغراض</span>
+        <span class="text-slate-400 text-xs">{{ isOpen(3) ? '−' : '+' }}</span>
+      </button>
+      <ul *ngIf="isOpen(3)" class="px-4 pb-4 text-sm text-slate-300 leading-relaxed list-disc pr-8 space-y-1">
+        <li><strong>موافقتك الصريحة</strong> (مادة 2 من قانون 151/2020).</li>
+        <li>تقديم خدمة المعلومات القانونية وتحسين دقتها.</li>
+        <li>الامتثال للالتزامات القانونية وحماية حقوق المتحكم في البيانات.</li>
+      </ul>
+    </div>
+
+    <!-- 4 -->
+    <div class="bg-slate-800/40 rounded-lg overflow-hidden border border-slate-700/50">
+      <button (click)="toggle(4)"
+        class="w-full flex justify-between items-center px-4 py-3 text-right hover:bg-slate-800/70 transition">
+        <span class="text-yellow-400 font-bold text-sm">4. النقل خارج مصر</span>
+        <span class="text-slate-400 text-xs">{{ isOpen(4) ? '−' : '+' }}</span>
+      </button>
+      <p *ngIf="isOpen(4)" class="px-4 pb-4 text-sm text-slate-300 leading-relaxed">
+        يستخدم التطبيق <strong>Google Gemini</strong>، حيث تُعالَج استفساراتك على خوادم
+        <strong>Google LLC (الولايات المتحدة)</strong>. هذا النقل يتم بموجب موافقتك الصريحة عند الدخول.
+        يحق لك سحب الموافقة بالتوقف عن الاستخدام.
+      </p>
+    </div>
+
+    <!-- 5 -->
+    <div class="bg-slate-800/40 rounded-lg overflow-hidden border border-slate-700/50">
+      <button (click)="toggle(5)"
+        class="w-full flex justify-between items-center px-4 py-3 text-right hover:bg-slate-800/70 transition">
+        <span class="text-yellow-400 font-bold text-sm">5. مدد الاحتفاظ</span>
+        <span class="text-slate-400 text-xs">{{ isOpen(5) ? '−' : '+' }}</span>
+      </button>
+      <ul *ngIf="isOpen(5)" class="px-4 pb-4 text-sm text-slate-300 leading-relaxed list-disc pr-8 space-y-1">
+        <li><strong>المحادثات:</strong> 90 يوماً.</li>
+        <li><strong>سجل التدقيق:</strong> 30 يوماً.</li>
+        <li><strong>سجلات الموافقة والإبلاغات:</strong> طوال فترة تشغيل الخدمة.</li>
+      </ul>
+    </div>
+
+    <!-- 6 -->
+    <div class="bg-slate-800/40 rounded-lg overflow-hidden border border-slate-700/50">
+      <button (click)="toggle(6)"
+        class="w-full flex justify-between items-center px-4 py-3 text-right hover:bg-slate-800/70 transition">
+        <span class="text-yellow-400 font-bold text-sm">6. حقوقك</span>
+        <span class="text-slate-400 text-xs">{{ isOpen(6) ? '−' : '+' }}</span>
+      </button>
+      <div *ngIf="isOpen(6)" class="px-4 pb-4 text-sm text-slate-300 leading-relaxed">
+        <ul class="list-disc pr-6 space-y-1">
+          <li>الوصول إلى بياناتك.</li>
+          <li>تصحيح أو تحديث بياناتك.</li>
+          <li>طلب الحذف (الحق في النسيان).</li>
+          <li>سحب موافقتك في أي وقت.</li>
+          <li>تقييد المعالجة أو الاعتراض عليها.</li>
+          <li>تقديم شكوى إلى <strong>مركز حماية البيانات الشخصية</strong>.</li>
+        </ul>
+        <p class="mt-2 text-xs">
+          لممارسة حقوقك: <a href="mailto:privacy@example.com" class="text-yellow-400 underline">privacy@example.com</a>
+          — نرد خلال 30 يوماً.
+        </p>
+      </div>
+    </div>
+
+    <!-- 7 -->
+    <div class="bg-slate-800/40 rounded-lg overflow-hidden border border-slate-700/50">
+      <button (click)="toggle(7)"
+        class="w-full flex justify-between items-center px-4 py-3 text-right hover:bg-slate-800/70 transition">
+        <span class="text-yellow-400 font-bold text-sm">7. الأمان</span>
+        <span class="text-slate-400 text-xs">{{ isOpen(7) ? '−' : '+' }}</span>
+      </button>
+      <p *ngIf="isOpen(7)" class="px-4 pb-4 text-sm text-slate-300 leading-relaxed">
+        نقل مشفّر (HTTPS)، فصل قاعدة بيانات التطبيق عن قاعدة بيانات القوانين، إخفاء أنماط حساسة
+        في سجلات التدقيق. لا يمكن ضمان أمان مطلق لأي نظام متصل بالإنترنت.
+      </p>
+    </div>
+
+    <!-- 8 -->
+    <div class="bg-slate-800/40 rounded-lg overflow-hidden border border-slate-700/50">
+      <button (click)="toggle(8)"
+        class="w-full flex justify-between items-center px-4 py-3 text-right hover:bg-slate-800/70 transition">
+        <span class="text-yellow-400 font-bold text-sm">8. القاصرون</span>
+        <span class="text-slate-400 text-xs">{{ isOpen(8) ? '−' : '+' }}</span>
+      </button>
+      <p *ngIf="isOpen(8)" class="px-4 pb-4 text-sm text-slate-300 leading-relaxed">
+        الخدمة مخصصة لمن أعمارهم <strong>18 سنة فأكثر</strong>. لا نجمع بيانات قاصرين عن قصد.
+      </p>
+    </div>
+
+    <!-- 9 -->
+    <div class="bg-slate-800/40 rounded-lg overflow-hidden border border-slate-700/50">
+      <button (click)="toggle(9)"
+        class="w-full flex justify-between items-center px-4 py-3 text-right hover:bg-slate-800/70 transition">
+        <span class="text-yellow-400 font-bold text-sm">9. تحديثات السياسة</span>
+        <span class="text-slate-400 text-xs">{{ isOpen(9) ? '−' : '+' }}</span>
+      </button>
+      <p *ngIf="isOpen(9)" class="px-4 pb-4 text-sm text-slate-300 leading-relaxed">
+        قد نقوم بتحديث السياسة. سيُعرض التاريخ في أعلى الصفحة. الاستمرار في الاستخدام يُعد قبولاً.
+      </p>
+    </div>
+
+    <!-- 10 -->
+    <div class="bg-slate-800/40 rounded-lg overflow-hidden border border-slate-700/50">
+      <button (click)="toggle(10)"
+        class="w-full flex justify-between items-center px-4 py-3 text-right hover:bg-slate-800/70 transition">
+        <span class="text-yellow-400 font-bold text-sm">10. القانون الحاكم</span>
+        <span class="text-slate-400 text-xs">{{ isOpen(10) ? '−' : '+' }}</span>
+      </button>
+      <p *ngIf="isOpen(10)" class="px-4 pb-4 text-sm text-slate-300 leading-relaxed">
+        تخضع هذه السياسة لأحكام <strong>القانون المصري</strong>، وتختص <strong>محاكم القاهرة</strong>
+        بنظر أي نزاع.
+      </p>
+    </div>
+
+  </div>
+
+  <div class="bg-slate-800/50 border border-slate-700 rounded-xl p-3 mt-5 text-xs text-slate-400">
+    قالب أولي — يُنصح بمراجعة محامٍ متخصص في حماية البيانات قبل الإطلاق التجاري واستكمال البيانات بين الأقواس <code>[...]</code>.
+  </div>
+
+  <div class="mt-4 flex justify-end">
+    <a routerLink="/chat" class="inline-block px-5 py-2 rounded-xl bg-yellow-400 text-slate-900 font-bold text-sm hover:bg-yellow-300">
+      العودة للمحادثة
+    </a>
+  </div>
+</div>

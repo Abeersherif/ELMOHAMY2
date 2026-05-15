@@ -11,13 +11,15 @@ import { QaComponent } from './qa/qa.component';
   styleUrls: ['./app.component.css']
 })
 export class AppComponent {
-  title = 'المحامي المصري';
-  showGate = true;
+  title = 'المساعد القانوني المصري';
+  year = new Date().getFullYear();
+  showGate = !sessionStorage.getItem('mohamy_gate_shown');
 
   ngOnInit() {
-    // Global Gate Animation
+    if (!this.showGate) return;
     setTimeout(() => {
       this.showGate = false;
-    }, 4000); // 4 seconds total to clear safely
+      sessionStorage.setItem('mohamy_gate_shown', '1');
+    }, 1500);
   }
 }

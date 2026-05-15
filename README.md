@@ -36,18 +36,19 @@ This enhanced version of your legal assistant uses a multi-agent architecture to
 pip install -r requirements.txt
 ```
 
-### 2. Set Environment Variable
+### 2. Set Environment Variables
 
 ```bash
 # Windows PowerShell
-$env:GEMINI_API_KEY="your-api-key-here"
-
-# Windows CMD
-set GEMINI_API_KEY=your-api-key-here
+$env:GOOGLE_API_KEY="your-api-key-here"
+$env:ALLOWED_ORIGINS="http://localhost:4200,https://yourdomain.example"
 
 # Linux/Mac
-export GEMINI_API_KEY=your-api-key-here
+export GOOGLE_API_KEY=your-api-key-here
+export ALLOWED_ORIGINS="http://localhost:4200,https://yourdomain.example"
 ```
+
+If `GOOGLE_API_KEY` is unset, the API still boots in **fallback mode** — retrieval works, but LLM-powered answers return canned messages.
 
 ### 3. Ensure Database Exists
 
@@ -93,88 +94,20 @@ Every response now includes:
 
 ## API Endpoints
 
-### Existing Endpoints (Enhanced)
-
 #### `POST /ask`
-Now uses agentic workflow with intelligent routing.
+Main legal-question endpoint. Body: `{ "query": "...", "session_id": "..." }`.
+Returns `{ summary, steps, answer, articles, verification, related_topics, intent, source, ... }`.
 
-**Request:**
-```json
-{
-  "query": "ما هي حقوق العامل في الإجازات؟"
-}
-```
-
-**Response:**
-```json
-{
-  "stage": "final_answer",
-  "intent": "specific_law_query",
-  "summary": "AI-generated summary in Arabic...",
-  "laws": [...],
-  "related_topics": ["موضوع 1", "موضوع 2"],
-  "message": "تم العثور على 10 مادة قانونية ذات صلة:"
-}
-```
-
-#### `POST /details`
-Now includes Gemini-powered explanation.
-
-**Response:**
-```json
-{
-  "stage": "details",
-  "law": {
-    "id": 123,
-    "titel": "...",
-    "details": "...",
-    "gemini_explanation": "Simplified explanation...",
-    "simplified_text": "..."
-  }
-}
-```
-
-### New Endpoints
-
-#### `GET /categories`
-Get all available categories with their laws.
-
-**Response:**
-```json
-{
-  "status": "ok",
-  "categories": [
-    {
-      "name": "العمل",
-      "laws": ["قانون العمل", "قانون التأمينات"],
-      "count": 2
-    }
-  ],
-  "total_categories": 15,
-  "total_laws": 8
-}
-```
+#### `POST /upload_document`
+Multipart form upload (`file` + optional `session_id`) for OCR/analysis of a legal document image or text.
+Returns `{ status, filename, analysis, extracted_text, full_text_length }`.
 
 #### `GET /laws`
-Get all available laws with metadata.
-
-**Response:**
-```json
-{
-  "status": "ok",
-  "laws": [
-    {
-      "name": "قانون العمل",
-      "article_count": 245,
-      "categories": ["العمل", "الأجور"]
-    }
-  ],
-  "total_laws": 8
-}
-```
+Returns categorized index of indexed laws from the Knowledge Agent:
+`{ categories: [{name, laws, count}], total_categories, total_laws }`.
 
 #### `GET /health`
-Enhanced health check showing agent status.
+`{ status: "ok", llm_enabled, law_tables, indexed_laws }`. Use for container healthchecks.
 
 ## Fallback Mode
 
@@ -193,7 +126,7 @@ You can enhance your Angular app to use new features:
 
 1. **Show AI Summary**: Display `summary` field prominently
 2. **Related Topics**: Show `related_topics` as clickable suggestions
-3. **Categories Page**: Use `/categories` endpoint for browsing
+3. **Categories Page**: Use `/laws` endpoint for browsing
 4. **Laws List**: Use `/laws` endpoint for overview page
 5. **Simplified Explanations**: Show `gemini_explanation` in details view
 
@@ -215,7 +148,7 @@ curl -X POST http://localhost:8000/ask \
 
 ### Test Categories
 ```bash
-curl http://localhost:8000/categories
+curl http://localhost:8000/laws
 ```
 
 ### Test Health
@@ -232,7 +165,7 @@ curl http://localhost:8000/health
 ## Troubleshooting
 
 ### Agents Not Initializing
-- Check `GEMINI_API_KEY` is set correctly
+- Check `GOOGLE_API_KEY` is set correctly
 - Check internet connection
 - View logs for specific error messages
 

@@ -3,45 +3,58 @@
   <div class="gate-right"></div>
 </div>
 
-<div class="h-full bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 text-white flex flex-col">
+<div class="app-shell flex flex-col bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 text-white overflow-hidden">
 
-
-  <header class="backdrop-blur bg-slate-950/80 border-b border-slate-800 sticky top-0 z-20">
-    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-
-
-      <nav class="flex items-center gap-3 text-sm" dir="rtl">
-        <a routerLink="/" routerLinkActive="bg-slate-800 text-white" [routerLinkActiveOptions]="{ exact: true }" class="px-4 py-2 rounded-full text-slate-200 hover:bg-slate-800 hover:text-white
-                 transition-all duration-200 shadow-sm hover:shadow-md">
-          الصفحة الرئيسية
+  <header class="shrink-0 backdrop-blur bg-slate-950/80 border-b border-slate-800 z-20">
+    <div class="max-w-7xl mx-auto px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between gap-2">
+      <nav class="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm shrink-0" dir="rtl">
+        <a routerLink="/" routerLinkActive="bg-slate-800 text-white" [routerLinkActiveOptions]="{ exact: true }"
+          class="px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-slate-200 hover:bg-slate-800 hover:text-white
+                 transition-all duration-200 whitespace-nowrap">
+          الرئيسية
         </a>
-
-        <a routerLink="/chat" routerLinkActive="bg-yellow-400 text-slate-900" class="px-4 py-2 rounded-full text-slate-200 hover:bg-yellow-400 hover:text-slate-900
-                 transition-all duration-200 shadow-sm hover:shadow-lg">
-          المحادثة القانونية
+        <a routerLink="/chat" routerLinkActive="bg-yellow-400 text-slate-900"
+          class="px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-slate-200 hover:bg-yellow-400 hover:text-slate-900
+                 transition-all duration-200 whitespace-nowrap">
+          المحادثة
         </a>
       </nav>
 
-
-      <div class="flex items-center gap-3">
-        <div class="flex flex-col items-end">
-          <span class="text-2xl font-extrabold tracking-wide">
-            المحامي المصري
+      <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+        <div class="flex flex-col items-end min-w-0">
+          <span class="text-base sm:text-xl md:text-2xl font-extrabold tracking-wide truncate max-w-[60vw]">
+            المساعد القانوني المصري
           </span>
-          <span class="text-xs text-slate-300">
-            روبوت محادثة قانوني لمساعدتك في استفساراتك
+          <span class="hidden sm:block text-[10px] sm:text-xs text-slate-300 truncate max-w-[60vw]">
+            مساعد ذكي للمعلومات القانونية — ليس بديلاً عن محامٍ مرخّص
           </span>
         </div>
-        <img src="/assets/logo_icon.png" class="h-14 w-auto drop-shadow-lg rounded-full" alt="Mohamy Logo">
+        <img src="/assets/logo_icon.png" class="h-9 sm:h-11 md:h-12 w-auto shrink-0 drop-shadow-lg rounded-full" alt="Logo">
       </div>
-
     </div>
   </header>
 
+  <div class="shrink-0 bg-amber-500/15 border-b border-amber-500/30 text-amber-100 text-[10px] sm:text-xs text-center py-1.5 px-2 sm:px-4" dir="rtl">
+    ⚖️ <strong>تنبيه:</strong> معلومات قانونية عامة بمساعدة الذكاء الاصطناعي.
+    <strong>ليست استشارة قانونية</strong>.
+    <a routerLink="/terms" class="underline hover:text-white mx-1">الشروط</a>·
+    <a routerLink="/privacy" class="underline hover:text-white mx-1">الخصوصية</a>
+  </div>
 
-  <main class="flex-1 flex justify-center items-stretch p-4">
-    <div class="w-full max-w-6xl mx-auto page-shell h-full flex flex-col">
+  <main class="flex-1 min-h-0 overflow-hidden p-2 sm:p-3 md:p-4">
+    <div class="w-full h-full max-w-7xl mx-auto">
       <router-outlet></router-outlet>
     </div>
   </main>
+
+  <footer class="shrink-0 bg-slate-950/90 border-t border-slate-800 text-slate-400 text-[10px] sm:text-xs py-2 px-3 sm:px-4" dir="rtl">
+    <div class="max-w-7xl mx-auto flex flex-wrap justify-between items-center gap-x-3 gap-y-1">
+      <div class="truncate">© {{ year }} المساعد القانوني المصري</div>
+      <div class="flex gap-2 sm:gap-3 shrink-0">
+        <a routerLink="/privacy" class="hover:text-white">الخصوصية</a>
+        <a routerLink="/terms" class="hover:text-white">الشروط</a>
+        <a href="mailto:privacy@example.com" class="hover:text-white">تواصل</a>
+      </div>
+    </div>
+  </footer>
 </div>

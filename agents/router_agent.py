@@ -1,270 +1,240 @@
-from typing import Dict, Any, List
-import logging
+import asyncio
 import json
+import logging
 import re
-from langchain_google_genai import ChatGoogleGenerativeAI
+from typing import Any, Dict, List, Optional
+
 from langchain_core.messages import HumanMessage, SystemMessage
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+from langchain_google_genai import ChatGoogleGenerativeAI
+
 from utils import normalize_arabic_simple as _normalize_arabic_simple
 
 logger = logging.getLogger("mohamy.router")
 
+LLM_TIMEOUT_SECONDS = 20
+
+INTENT_OPTIONS = [
+    "specific_law_query",
+    "rights_inquiry",
+    "procedure_inquiry",
+    "definition_query",
+    "general",
+]
+
+
 def safe_json_extract(text: str) -> Dict[str, Any]:
-    """
-    Safely extract JSON from LLM response.
-    """
     if not text:
         return {}
-
+    text = text.strip()
     if text.startswith("```"):
-        lines = text.splitlines()
-        if lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines[-1].startswith("```"):
-            lines = lines[:-1]
-        text = "\n".join(lines)
-
+        text = re.sub(r"^```\w*\n?", "", text)
+        text = re.sub(r"\n?```$", "", text)
     match = re.search(r"\{.*\}", text, re.DOTALL)
     if not match:
         return {}
-
     try:
         return json.loads(match.group())
-    except Exception as e:
+    except json.JSONDecodeError as e:
         logger.error(f"❌ JSON parsing failed: {e} | RAW: {text[:200]!r}")
         return {}
 
-class RouterAgent:
-    """
-    Safer Router Agent:
-    - NEVER throws JSON key errors
-    - ALWAYS returns complete structure
-    """
 
-    def __init__(self, llm: ChatGoogleGenerativeAI):
+class RouterAgent:
+    """Routes user queries. Async, never throws, always returns structured output."""
+
+    def __init__(self, llm: Optional[ChatGoogleGenerativeAI]):
         self.llm = llm
-        logger.info("✅ Router Agent initialized")
+        if llm is None:
+            logger.warning("⚠️ Router Agent initialized in fallback mode (no LLM)")
+        else:
+            logger.info("✅ Router Agent initialized")
+
+    async def _ainvoke(self, messages, timeout: float = LLM_TIMEOUT_SECONDS):
+        if self.llm is None:
+            raise RuntimeError("LLM is not configured")
+        return await asyncio.wait_for(self.llm.ainvoke(messages), timeout=timeout)
+
+    def _default_classification(self, user_query: str) -> Dict[str, Any]:
+        return {
+            "intent": "specific_law_query",
+            "confidence": 0.4,
+            "extracted_info": {
+                "law_name": None,
+                "category": None,
+                "keywords": user_query.split(),
+            },
+        }
 
     def _ensure_structure(self, data: Dict[str, Any], user_query: str) -> Dict[str, Any]:
-        """
-        Ensures the output has all required fields.
-        Fills missing keys with safe defaults.
-        """
-        intent = data.get("intent", "specific_law_query")
-        confidence = float(data.get("confidence", 0.5))
+        intent = data.get("intent") or "specific_law_query"
+        if intent not in INTENT_OPTIONS:
+            intent = "specific_law_query"
 
-        extracted = data.get("extracted_info", {})
+        try:
+            confidence = float(data.get("confidence", 0.5))
+        except (TypeError, ValueError):
+            confidence = 0.5
+
+        extracted = data.get("extracted_info") or {}
         if not isinstance(extracted, dict):
             extracted = {}
 
-        extracted_info = {
-            "law_name": extracted.get("law_name"),
-            "category": extracted.get("category"),
-            "keywords": extracted.get("keywords") or user_query.split()
-        }
+        keywords = extracted.get("keywords")
+        if not isinstance(keywords, list) or not keywords:
+            keywords = user_query.split()
 
         return {
             "intent": intent,
             "confidence": confidence,
-            "extracted_info": extracted_info
+            "extracted_info": {
+                "law_name": extracted.get("law_name"),
+                "category": extracted.get("category"),
+                "keywords": keywords,
+            },
         }
 
-    def classify_query(self, user_query: str) -> Dict[str, Any]:
-        system_prompt = """أنت خبير في تصنيف الأسئلة القانونية إلى 4 أنواع فقط.
+    async def classify_query(self, user_query: str) -> Dict[str, Any]:
+        if self.llm is None:
+            return self._default_classification(user_query)
 
-أعد الرد بصيغة JSON فقط:
-{
-    "intent": "...",
-    "confidence": 0.0-1.0,
-    "extracted_info": {
-        "law_name": "...",
-        "category": "...",
-        "keywords": ["..."]
-    }
-}"""
-
+        intent_list = ", ".join(INTENT_OPTIONS)
+        system_prompt = (
+            "أنت خبير في تصنيف الأسئلة القانونية. أعد JSON فقط:\n"
+            "{\n"
+            '  "intent": "<one of: ' + intent_list + '>",\n'
+            '  "confidence": 0.0-1.0,\n'
+            '  "extracted_info": {"law_name": "...", "category": "...", "keywords": ["..."]}\n'
+            "}"
+        )
         try:
-            messages = [
-                SystemMessage(content=system_prompt),
-                HumanMessage(content=f"السؤال: {user_query}")
-            ]
-
-            response = self.llm.invoke(messages)
-            raw = response.content.strip()
-
-            parsed = safe_json_extract(raw)
-            final_struct = self._ensure_structure(parsed, user_query)
-
-            logger.info(
-                f"🧭 Router: intent={final_struct['intent']} | "
-                f"conf={final_struct['confidence']}"
+            response = await self._ainvoke(
+                [SystemMessage(content=system_prompt), HumanMessage(content=f"السؤال: {user_query}")]
             )
-
-            return final_struct
+            parsed = safe_json_extract(response.content)
+            final = self._ensure_structure(parsed, user_query)
+            logger.info(f"🧭 Router: intent={final['intent']} | conf={final['confidence']}")
+            return final
+        except asyncio.TimeoutError:
+            logger.warning("⏱️ Router classify timed out")
+            return self._default_classification(user_query)
         except Exception as e:
             logger.error(f"❌ Router classify error: {e}")
-            return {
-                "intent": "specific_law_query",
-                "confidence": 0.4,
-                "extracted_info": {
-                    "law_name": None,
-                    "category": None,
-                    "keywords": user_query.split()
-                }
-            }
+            return self._default_classification(user_query)
 
-    def infer_target_tables(self, user_query: str, all_tables: List[str]) -> List[str]:
-        """
-        Infer target tables with SMART priority:
-        1. Exact/Close Match on explicit Law Name (e.g. "قانون العمل")
-        2. LLM Semantic Selection (AI decides based on meaning)
-        3. Fallback to broad search
-        """
-        candidate_tables = [
+    async def infer_target_tables(self, user_query: str, all_tables: List[str]) -> List[str]:
+        candidates = [
             t for t in all_tables
-            if t not in ["قانون", "all_laws", "combined_laws"] and not t.startswith("sqlite_")
+            if t not in {"قانون", "all_laws", "combined_laws"} and not t.startswith("sqlite_")
         ]
-
-        if not candidate_tables:
+        if not candidates:
             return []
 
-        q_norm = _normalize_arabic_simple(user_query)
-        q_tokens = set(q_norm.split())
+        # ── STRICT match only when the user explicitly names a full law ──
+        # e.g. "قانون العقوبات" → match "قانون العقوبات" table.
+        # Single-token overlaps like "الدفاع" matching "قانون الدفاع" are
+        # dangerous — "الدفاع عن النفس" (self-defense) should go to the
+        # penal code, NOT the military defense category.  So we require
+        # ALL non-"قانون" tokens of the table name to appear in the query.
+        q_tokens = set(_normalize_arabic_simple(user_query).split())
 
-        explicit_matches = []
-        for table in candidate_tables:
-            t_norm = _normalize_arabic_simple(table)
-            t_tokens = [t for t in t_norm.split() if t != "قانون"]
+        explicit: List[str] = []
+        for table in candidates:
+            t_tokens = [t for t in _normalize_arabic_simple(table).split() if t != "قانون"]
+            if not t_tokens:
+                continue
+            overlap = sum(1 for tok in t_tokens if tok in q_tokens)
+            # Require FULL overlap — every token of the table name must be
+            # in the query.  This prevents single-word false matches.
+            if overlap == len(t_tokens):
+                explicit.append(table)
 
-            if not t_tokens: continue
+        if explicit:
+            logger.info(f"🎯 Strict Table Match: {explicit}")
+            return explicit
 
-            overlap_count = 0
-            for token in t_tokens:
-                if token in q_tokens:
-                    overlap_count += 1
+        # ── LLM-based selection — thinks like a smart lawyer ──
+        if self.llm is None:
+            return []
 
-            is_match = False
-            if len(t_tokens) == 1:
-                if overlap_count == 1: is_match = True
-            else:
-                if overlap_count == len(t_tokens): is_match = True
-                elif len(t_tokens) > 2 and overlap_count >= len(t_tokens) - 1: is_match = True
+        return await self._llm_select_tables(user_query, candidates)
 
-            if is_match:
-                explicit_matches.append(table)
-
-        if explicit_matches:
-            logger.info(f"🎯 Strict Table Match: {explicit_matches}")
-            return explicit_matches
-
-        return self._llm_select_tables(user_query, candidate_tables)
-
-    def _llm_select_tables(self, query: str, available_tables: List[str]) -> List[str]:
-        """
-        Ask LLM to pick the most relevant tables for the query.
-        """
-        tables_str = ", ".join(available_tables)
-
-        system_prompt = """
-أنت خبير توجيه قانوني. مهمتك تحديد "الجداول القانونية" (Tables) التي يجب البحث فيها للإجابة على سؤال المستخدم.
-لديك قائمة بأسماء الجداول المتاحة في قاعدة البيانات.
-
-المطلوب:
-1. فهم موضوع سؤال المستخدم بدقة.
-2. اختيار 1 إلى 3 جداول فقط تكون الأكثر صلة بالموضوع.
-3. إذا كان السؤال عن "العمل" او "الموظف"، اختر "قانون العمل".
-4. إذا كان عن "الزواج/الطلاق"، اختر "قانون الأحوال الشخصية" أو "قانون الأسرة".
-5. إذا كان عن "المدني/العقود/التعويض"، اختر "القانون المدني".
-6. إذا كان عن "السرقة/القتل/الجريمة"، اختر "قانون العقوبات".
-
-الرد يجب أن يكون قائمة JSON فقط بأسماء الجداول المختارة المطابقة حرفياً للقائمة المتاحة.
-Format: ["Table Name 1", "Table Name 2"]
-"""
-
-        user_message = f"""
-سؤال المستخدم: "{query}"
-
-قائمة الجداول المتاحة:
-[{tables_str}]
-
-ما هي الجداول المناسبة للبحث؟ اختر بدقة.
-"""
+    async def _llm_select_tables(self, query: str, available: List[str]) -> List[str]:
+        tables_str = "\n".join(f"- {t}" for t in available)
+        system_prompt = (
+            "أنت محامٍ مصري خبير. مهمتك تحديد أي فروع القانون (الجداول) يجب البحث فيها "
+            "للإجابة على سؤال المستخدم.\n\n"
+            "**قواعد التفكير:**\n"
+            "- فكّر كمحامٍ ذكي: سؤال واحد قد يتطلب البحث في عدة قوانين.\n"
+            "  مثال: 'قتلت شخص بدافع الدفاع عن النفس' ← قانون العقوبات + قانون الإجراءات الجنائية.\n"
+            "  مثال: 'اترفضت من الشغل' ← قانون العمل + قانون التأمينات الاجتماعية.\n"
+            "  مثال: 'ما هي حقوق الزوجة بعد الطلاق' ← قانون الأحوال الشخصية.\n"
+            "- لا تختر جدولاً لمجرد تطابق كلمة واحدة. افهم المعنى الكامل.\n"
+            "  مثال: 'الدفاع عن النفس' ≠ 'قانون الدفاع' (الأخير عن الدفاع المدني/العسكري).\n"
+            "- اختر 1-4 جداول الأكثر صلة بالموضوع القانوني الفعلي.\n\n"
+            "**أجب بـ JSON فقط:** [\"اسم الجدول 1\", \"اسم الجدول 2\"]\n"
+            "أسماء الجداول يجب أن تكون حرفياً من القائمة المتاحة."
+        )
+        user_message = (
+            f"سؤال المستخدم: \"{query}\"\n\n"
+            f"الجداول المتاحة:\n{tables_str}\n\n"
+            "اختر الجداول الأنسب قانونياً (ليس بتطابق الكلمات بل بالمعنى القانوني)."
+        )
         try:
-            response = self.llm.invoke([
-                SystemMessage(content=system_prompt),
-                HumanMessage(content=user_message)
-            ])
-
-            raw_content = response.content.strip()
-
-            extracted = safe_json_extract(raw_content)
-
-            import json
-            import re
-
-            cleaned = raw_content
-            if "```" in cleaned:
-                cleaned = re.sub(r"```\w*\n", "", cleaned).replace("```", "")
-
-            json_match = re.search(r"\[.*\]", cleaned, re.DOTALL)
-            if json_match:
-                params = json.loads(json_match.group())
-
-                validated_tables = []
-                for t in params:
-                    if t in available_tables:
-                        validated_tables.append(t)
-                    else:
-                        logger.warning(f"⚠️ LLM returned invalid table name: {t}")
-
-                if validated_tables:
-                    logger.info(f"🤖 AI Selected Tables: {validated_tables}")
-                    return validated_tables
-
-            logger.warning("⚠️ LLM returned no valid JSON list for tables. Falling back.")
+            response = await self._ainvoke(
+                [SystemMessage(content=system_prompt), HumanMessage(content=user_message)]
+            )
+            content = (response.content or "").strip()
+            if content.startswith("```"):
+                content = re.sub(r"^```\w*\n?", "", content)
+                content = re.sub(r"\n?```$", "", content)
+            match = re.search(r"\[.*\]", content, re.DOTALL)
+            if not match:
+                logger.warning("⚠️ LLM returned no JSON list for tables")
+                return []
+            parsed = json.loads(match.group())
+            valid = [t for t in parsed if t in available]
+            if not valid:
+                logger.warning(f"⚠️ LLM returned tables not in DB: {parsed}")
+            else:
+                logger.info(f"🤖 AI Selected Tables: {valid}")
+            return valid
+        except asyncio.TimeoutError:
+            logger.warning("⏱️ LLM table selection timed out")
             return []
-
         except Exception as e:
-            logger.error(f"❌ Error in AI table selection: {e}")
+            logger.error(f"❌ LLM table selection error: {e}")
             return []
 
-    def reformulate_query(self, user_query: str, chat_history: List[Dict[str, str]]) -> str:
-        """
-        Reformulate the user query to be standalone based on chat history.
-        e.g. "What about theft?" -> "What is the penalty for theft?" (if context was about penalties)
-        """
-        if not chat_history:
+    async def reformulate_query(
+        self, user_query: str, chat_history: List[Dict[str, str]]
+    ) -> str:
+        if not chat_history or self.llm is None:
             return user_query
 
-        # Convert history to prompt format
-        history_text = ""
-        for turn in chat_history[-3:]: # Look at last 3 turns
-            history_text += f"User: {turn.get('user', '')}\nAssistant: {turn.get('bot', '')}\n"
-
-        system_prompt = """
-أنت مساعد ذكي. مهمتك هي إعادة صياغة سؤال المستخدم الأخير ليكون "مستقلاً" ومفهوماً بناءً على سياق الحوار السابق.
-إذا كان السؤال معتمداً على ما قبله (مثل: "ما هي عقوبتها؟" أو "كيف أفعل ذلك؟")، أعد كتابته ليحتوي على كل التفاصيل اللازمة.
-إذا كان السؤال واضحاً ومستقلاً، أعده كما هو.
-
-أمثلة:
-سياق: المستخدم: أريد رفع دعوى طلاق. المساعد: تفاصيل...
-سؤال حالي: كم تتكلف؟
-إعادة صياغة: كم تكلفة رفع دعوى الطلاق؟
-
-أعد الصياغة فقط بدون أي مقدمات.
-"""
-        messages = [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=f"سجل الحوار السابق:\n{history_text}\n\nالسؤال الحالي: {user_query}")
-        ]
-
+        history_text = "".join(
+            f"User: {t.get('user', '')}\nAssistant: {t.get('bot', '')}\n"
+            for t in chat_history[-3:]
+        )
+        system_prompt = (
+            "أعد صياغة سؤال المستخدم الأخير ليكون مستقلاً ومفهوماً بناءً على الحوار السابق. "
+            "إذا كان السؤال واضحاً ومستقلاً، أعده كما هو. "
+            "أعد الصياغة فقط بدون أي مقدمات."
+        )
         try:
-            response = self.llm.invoke(messages)
-            new_query = response.content.strip()
-            logger.info(f"🔄 Reformulated Query: '{user_query}' -> '{new_query}'")
-            return new_query
+            response = await self._ainvoke(
+                [
+                    SystemMessage(content=system_prompt),
+                    HumanMessage(content=f"الحوار:\n{history_text}\n\nالسؤال: {user_query}"),
+                ]
+            )
+            new_query = (response.content or "").strip()
+            if new_query:
+                logger.info(f"🔄 Reformulated: '{user_query}' → '{new_query}'")
+                return new_query
+            return user_query
+        except asyncio.TimeoutError:
+            logger.warning("⏱️ Query reformulation timed out")
+            return user_query
         except Exception as e:
-            logger.error(f"❌ Error reformulating query: {e}")
+            logger.error(f"❌ Reformulation error: {e}")
             return user_query
