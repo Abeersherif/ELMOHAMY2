@@ -219,7 +219,7 @@ class AnswerAgent:
         for i, art in enumerate(retrieved_articles[:5], 1):
             law_name = art.get("law_name", "")
             titel = art.get("titel", "")
-            details_full = (art.get("details") or "")[:600]
+            details_full = (art.get("details") or "")[:4000]
             category = art.get("main_category", "")
             status_tag = " [ملغاة]" if art.get("is_cancelled") else ""
             if art.get("is_cancelled"):
