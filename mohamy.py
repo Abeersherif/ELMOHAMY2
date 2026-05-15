@@ -92,9 +92,19 @@ ALLOWED_ORIGINS = [
     if o.strip()
 ]
 
+# In addition to the explicit ALLOWED_ORIGINS list, accept any Render-hosted
+# frontend (https://*.onrender.com). This avoids breakage when the frontend
+# service URL changes or when an ALLOWED_ORIGINS env var on the dashboard
+# is set without the current frontend origin.
+ALLOWED_ORIGIN_REGEX = os.getenv(
+    "ALLOWED_ORIGIN_REGEX",
+    r"https://([a-z0-9-]+\.)*onrender\.com",
+)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=ALLOWED_ORIGIN_REGEX,
     allow_credentials=False,
     allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["*"],
