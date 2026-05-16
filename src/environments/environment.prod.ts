@@ -1,4 +1,4 @@
 export const environment = {
     production: true,
-    apiUrl: 'https://mohamyelmasry.onrender.com'
+    apiUrl: 'https://mohamy-api.onrender.com'
 };
