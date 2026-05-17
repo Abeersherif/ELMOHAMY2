@@ -67,13 +67,15 @@
     <div class="bg-slate-800/40 rounded-lg overflow-hidden border border-slate-700/50">
       <button (click)="toggle(4)"
         class="w-full flex justify-between items-center px-4 py-3 text-right hover:bg-slate-800/70 transition">
-        <span class="text-yellow-400 font-bold text-sm">4. النقل خارج مصر</span>
+        <span class="text-yellow-400 font-bold text-sm">4. معالجة الاستفسارات</span>
         <span class="text-slate-400 text-xs">{{ isOpen(4) ? '−' : '+' }}</span>
       </button>
       <p *ngIf="isOpen(4)" class="px-4 pb-4 text-sm text-slate-300 leading-relaxed">
-        يستخدم التطبيق <strong>Google Gemini</strong>، حيث تُعالَج استفساراتك على خوادم
-        <strong>Google LLC (الولايات المتحدة)</strong>. هذا النقل يتم بموجب موافقتك الصريحة عند الدخول.
-        يحق لك سحب الموافقة بالتوقف عن الاستخدام.
+        لتوليد الإجابات، يستعين التطبيق بنموذج ذكاء اصطناعي مقدَّم من
+        <strong>Google (Gemini)</strong>، وتتم معالجة نص استفسارك على خوادمه التي قد تقع
+        خارج جمهورية مصر العربية. تُنقل فقط الاستفسارات نفسها — دون بيانات تعريف شخصية
+        إضافية — ولا يُحتفظ بها لدى مزوّد الذكاء الاصطناعي بعد إنتاج الإجابة وفقاً
+        لسياسته المعلنة. يحق لك التوقف عن استخدام التطبيق في أي وقت.
       </p>
     </div>
 

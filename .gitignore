@@ -29,3 +29,6 @@ dist/
 Thumbs.db
 .claude/
 mohamy_runtime.db
+# Local snapshots of the Render runtime DB pulled via scripts/view-audit.ps1
+mohamy_runtime_RENDER.db
+mohamy_runtime_RENDER.db-*
