@@ -3,13 +3,22 @@ services:
   - type: web
     name: mohamy-api
     env: python
+    plan: standard           # 2 GB RAM; required for disks
     buildCommand: chmod +x build.sh && ./build.sh
     startCommand: uvicorn mohamy:app --host 0.0.0.0 --port $PORT
+    disk:
+      name: mohamy-data
+      mountPath: /data       # law DB + chat history live here, survive redeploys
+      sizeGB: 2
     envVars:
       - key: GOOGLE_API_KEY
-        sync: false  # You'll set this manually in Render dashboard
+        sync: false          # set on Render dashboard
       - key: PYTHON_VERSION
         value: 3.11.0
+      - key: DB_PATH
+        value: /data/law_database.db
+      - key: RUNTIME_DB_PATH
+        value: /data/mohamy_runtime.db
     
   # Static Frontend (Angular built files)
   - type: web
