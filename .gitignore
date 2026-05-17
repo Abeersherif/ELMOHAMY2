@@ -2,7 +2,8 @@
 
 # Large files
 *.pdf
-# Note: law_database.db tracked via LFS
+# law_database.db is NOT in git — lives on /data persistent disk on Render
+law_database.db
 
 # Dependencies
 node_modules/
