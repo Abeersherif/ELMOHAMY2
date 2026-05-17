@@ -122,22 +122,26 @@ if STATIC_DIR.exists():
 class QueryRequest(BaseModel):
     query: str
     session_id: str
+    owner_id: str
 
 
 class ExplainArticleRequest(BaseModel):
     session_id: str
+    owner_id: str
     table: str
     article_id: int
 
 
 class ConsentRequest(BaseModel):
     session_id: str
+    owner_id: str
     kind: str  # 'privacy' | 'age' | 'cross_border' | 'upload'
     accepted: bool
 
 
 class ReportRequest(BaseModel):
     session_id: str
+    owner_id: str
     reason: Optional[str] = None
     message_ref: Optional[str] = None
 
@@ -191,6 +195,7 @@ def _fetch_article_by_ref(table: str, article_id: int) -> Optional[Dict[str, Any
 async def ask(request: QueryRequest) -> Dict[str, Any]:
     t0 = time.monotonic()
     session_id = request.session_id
+    owner_id = request.owner_id
     query = request.query
     intent_label = "unknown"
     target_tables: List[str] = []
@@ -201,7 +206,7 @@ async def ask(request: QueryRequest) -> Dict[str, Any]:
     try:
         logger.info(f"🧑‍⚖️ New Query: {query} [Session: {session_id}]")
 
-        history = runtime_store.recent_turns_for_reformulation(session_id, limit=3)
+        history = runtime_store.recent_turns_for_reformulation(session_id, owner_id, limit=3)
         processed_query = (
             await router_agent.reformulate_query(query, history) if history else query
         )
@@ -499,12 +504,13 @@ async def ask(request: QueryRequest) -> Dict[str, Any]:
         )
         cancelled_count = sum(1 for a in filtered_articles if a.get("is_cancelled"))
 
-        runtime_store.append_turn(session_id, query, final_answer, articles=shaped)
+        runtime_store.append_turn(session_id, owner_id, query, final_answer, articles=shaped)
 
         latency_ms = int((time.monotonic() - t0) * 1000)
         runtime_store.log_audit(
             event_type="ask",
             session_id=session_id,
+            owner_id=owner_id,
             query=query,
             answer_text=final_answer,
             intent=intent_label,
@@ -546,6 +552,7 @@ async def ask(request: QueryRequest) -> Dict[str, Any]:
         runtime_store.log_audit(
             event_type="ask",
             session_id=session_id,
+            owner_id=owner_id,
             query=query,
             intent=intent_label,
             target_tables=target_tables,
@@ -580,12 +587,16 @@ async def explain_article(req: ExplainArticleRequest) -> Dict[str, Any]:
 
         explanation = await answer_agent.explain_article(article)
         user_msg = f"عرض شرح: {article.get('titel') or article.get('law_name') or ''}"
-        runtime_store.append_turn(req.session_id, user_msg, explanation, articles=[_shape_article(article)])
+        runtime_store.append_turn(
+            req.session_id, req.owner_id, user_msg, explanation,
+            articles=[_shape_article(article)],
+        )
 
         latency_ms = int((time.monotonic() - t0) * 1000)
         runtime_store.log_audit(
             event_type="explain",
             session_id=req.session_id,
+            owner_id=req.owner_id,
             query=user_msg,
             answer_text=explanation,
             target_tables=[req.table],
@@ -606,6 +617,7 @@ async def explain_article(req: ExplainArticleRequest) -> Dict[str, Any]:
         runtime_store.log_audit(
             event_type="explain",
             session_id=req.session_id,
+            owner_id=req.owner_id,
             query=f"explain {req.table}#{req.article_id}",
             target_tables=[req.table],
             source="error",
@@ -616,35 +628,46 @@ async def explain_article(req: ExplainArticleRequest) -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# /history — restore chat for a session
+# /history — restore chat for a session (owner-scoped)
 # ---------------------------------------------------------------------------
 @app.get("/history")
-def get_history(session_id: str = Query(...), limit: int = Query(50, ge=1, le=200)) -> Dict[str, Any]:
-    turns = runtime_store.fetch_history(session_id, limit=limit)
+def get_history(
+    session_id: str = Query(...),
+    owner_id: str = Query(...),
+    limit: int = Query(50, ge=1, le=200),
+) -> Dict[str, Any]:
+    turns = runtime_store.fetch_history(session_id, owner_id, limit=limit)
     return {"session_id": session_id, "turns": turns}
 
 
 @app.delete("/history/last")
 def delete_last_turns(
     session_id: str = Query(...),
+    owner_id: str = Query(...),
     count: int = Query(1, ge=1, le=50),
 ) -> Dict[str, Any]:
-    removed = runtime_store.delete_last_turns(session_id, count)
+    removed = runtime_store.delete_last_turns(session_id, owner_id, count)
     return {"removed": removed, "session_id": session_id}
 
 
 # ---------------------------------------------------------------------------
-# /sessions — list all chats for the sidebar
+# /sessions — list this browser's chats (owner-scoped)
 # ---------------------------------------------------------------------------
 @app.get("/sessions")
-def list_sessions(limit: int = Query(50, ge=1, le=200)) -> Dict[str, Any]:
-    sessions = runtime_store.list_sessions(limit=limit)
+def list_sessions(
+    owner_id: str = Query(...),
+    limit: int = Query(50, ge=1, le=200),
+) -> Dict[str, Any]:
+    sessions = runtime_store.list_sessions(owner_id, limit=limit)
     return {"count": len(sessions), "sessions": sessions}
 
 
 @app.delete("/sessions/{session_id}")
-def delete_session(session_id: str) -> Dict[str, Any]:
-    deleted = runtime_store.delete_session(session_id)
+def delete_session(
+    session_id: str,
+    owner_id: str = Query(...),
+) -> Dict[str, Any]:
+    deleted = runtime_store.delete_session(session_id, owner_id)
     return {"deleted": deleted, "session_id": session_id}
 
 
@@ -657,6 +680,7 @@ def record_consent(req: ConsentRequest, request: Request) -> Dict[str, Any]:
     ua = request.headers.get("user-agent")
     runtime_store.record_consent(
         session_id=req.session_id,
+        owner_id=req.owner_id,
         kind=req.kind,
         accepted=req.accepted,
         ip=ip,
@@ -671,17 +695,21 @@ def record_consent(req: ConsentRequest, request: Request) -> Dict[str, Any]:
 @app.post("/report")
 def report_answer(req: ReportRequest) -> Dict[str, Any]:
     runtime_store.record_report(
-        session_id=req.session_id, reason=req.reason, message_ref=req.message_ref
+        session_id=req.session_id,
+        owner_id=req.owner_id,
+        reason=req.reason,
+        message_ref=req.message_ref,
     )
     return {"recorded": True}
 
 
 @app.get("/reports")
 def list_reports(
+    owner_id: str = Query(...),
     session_id: Optional[str] = Query(None),
     limit: int = Query(100, ge=1, le=1000),
 ) -> Dict[str, Any]:
-    entries = runtime_store.fetch_reports(session_id=session_id, limit=limit)
+    entries = runtime_store.fetch_reports(owner_id=owner_id, session_id=session_id, limit=limit)
     return {"count": len(entries), "reports": entries}
 
 
@@ -699,10 +727,11 @@ def trigger_cleanup() -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 @app.get("/audit")
 def get_audit(
+    owner_id: str = Query(...),
     session_id: Optional[str] = Query(None),
     limit: int = Query(100, ge=1, le=1000),
 ) -> Dict[str, Any]:
-    entries = runtime_store.fetch_audit(session_id=session_id, limit=limit)
+    entries = runtime_store.fetch_audit(owner_id=owner_id, session_id=session_id, limit=limit)
     return {"count": len(entries), "entries": entries}
 
 
@@ -711,7 +740,9 @@ def get_audit(
 # ---------------------------------------------------------------------------
 @app.post("/upload_document")
 async def upload_document(
-    file: UploadFile = File(...), session_id: Optional[str] = Form(None)
+    file: UploadFile = File(...),
+    session_id: str = Form(...),
+    owner_id: str = Form(...),
 ) -> Dict[str, Any]:
     t0 = time.monotonic()
     try:
@@ -720,15 +751,18 @@ async def upload_document(
         result = await answer_agent.analyze_document(content, file.filename or "", file.content_type or "")
         analysis_text = result.get("analysis", "")
 
-        if session_id and analysis_text:
+        if analysis_text:
             runtime_store.append_turn(
-                session_id, f"تحليل مستند: {file.filename}", analysis_text, articles=None
+                session_id, owner_id,
+                f"تحليل مستند: {file.filename}", analysis_text,
+                articles=None,
             )
 
         latency_ms = int((time.monotonic() - t0) * 1000)
         runtime_store.log_audit(
             event_type="upload",
             session_id=session_id,
+            owner_id=owner_id,
             query=f"upload {file.filename}",
             answer_text=analysis_text,
             source="document",
@@ -748,6 +782,7 @@ async def upload_document(
         runtime_store.log_audit(
             event_type="upload",
             session_id=session_id,
+            owner_id=owner_id,
             query=f"upload {file.filename}",
             source="error",
             latency_ms=latency_ms,

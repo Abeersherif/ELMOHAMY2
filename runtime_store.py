@@ -109,14 +109,40 @@ def init_schema() -> None:
             """
         )
         # Migrations for existing DBs (add columns idempotently)
-        existing_cols = {r[1] for r in conn.execute("PRAGMA table_info(audit_log)").fetchall()}
+        audit_cols = {r[1] for r in conn.execute("PRAGMA table_info(audit_log)").fetchall()}
         for col_name in ("answer_text", "rulings_refs"):
-            if col_name not in existing_cols:
+            if col_name not in audit_cols:
                 try:
                     conn.execute(f"ALTER TABLE audit_log ADD COLUMN {col_name} TEXT")
                     logger.info(f"📒 Migrated audit_log: added {col_name} column")
                 except sqlite3.OperationalError as e:
                     logger.warning(f"audit_log migration ({col_name}) skipped: {e}")
+
+        # Privacy isolation — owner_id per browser. Chats from before this
+        # migration have no owner, so we wipe them (per product decision) and
+        # orphan old audit/reports rows so they become invisible to all owners.
+        chat_cols = {r[1] for r in conn.execute("PRAGMA table_info(chat_sessions)").fetchall()}
+        if "owner_id" not in chat_cols:
+            wiped = conn.execute("DELETE FROM chat_sessions").rowcount
+            conn.execute("ALTER TABLE chat_sessions ADD COLUMN owner_id TEXT")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_chat_owner ON chat_sessions(owner_id, session_id, id)")
+            logger.info(f"🔒 Privacy migration: wiped {wiped} pre-owner chat rows, added owner_id")
+
+        if "owner_id" not in audit_cols:
+            conn.execute("ALTER TABLE audit_log ADD COLUMN owner_id TEXT")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_owner ON audit_log(owner_id, id)")
+            logger.info("🔒 Privacy migration: added owner_id to audit_log (old rows orphaned)")
+
+        reports_cols = {r[1] for r in conn.execute("PRAGMA table_info(reports)").fetchall()}
+        if "owner_id" not in reports_cols:
+            conn.execute("ALTER TABLE reports ADD COLUMN owner_id TEXT")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_reports_owner ON reports(owner_id, id)")
+            logger.info("🔒 Privacy migration: added owner_id to reports (old rows orphaned)")
+
+        consents_cols = {r[1] for r in conn.execute("PRAGMA table_info(consents)").fetchall()}
+        if "owner_id" not in consents_cols:
+            conn.execute("ALTER TABLE consents ADD COLUMN owner_id TEXT")
+            logger.info("🔒 Privacy migration: added owner_id to consents")
 
     logger.info(f"📒 Runtime store ready at {RUNTIME_DB_PATH}")
 
@@ -126,19 +152,20 @@ def init_schema() -> None:
 # ---------------------------------------------------------------------------
 def append_turn(
     session_id: str,
+    owner_id: str,
     user_msg: str,
     bot_msg: str,
     articles: Optional[List[Dict[str, Any]]] = None,
 ) -> None:
-    if not session_id:
-        logger.warning("append_turn called with empty session_id — skipping")
+    if not session_id or not owner_id:
+        logger.warning("append_turn called with empty session_id/owner_id — skipping")
         return
     try:
         with _lock, _connect() as conn:
             cur = conn.execute(
-                "INSERT INTO chat_sessions (session_id, user_msg, bot_msg, articles) "
-                "VALUES (?, ?, ?, ?)",
-                (session_id, user_msg, bot_msg,
+                "INSERT INTO chat_sessions (session_id, owner_id, user_msg, bot_msg, articles) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (session_id, owner_id, user_msg, bot_msg,
                  json.dumps(articles, ensure_ascii=False) if articles else None),
             )
             logger.info(
@@ -148,16 +175,17 @@ def append_turn(
         logger.error(f"❌ append_turn failed: {e}", exc_info=True)
 
 
-def delete_last_turns(session_id: str, count: int) -> int:
-    """Delete the most recent N turns for a session. Returns rows removed."""
-    if not session_id or count < 1:
+def delete_last_turns(session_id: str, owner_id: str, count: int) -> int:
+    """Delete the most recent N turns for a session owned by owner_id."""
+    if not session_id or not owner_id or count < 1:
         return 0
     with _lock, _connect() as conn:
         cur = conn.execute(
             "DELETE FROM chat_sessions WHERE id IN "
-            "(SELECT id FROM chat_sessions WHERE session_id = ? "
+            "(SELECT id FROM chat_sessions "
+            " WHERE session_id = ? AND owner_id = ? "
             " ORDER BY id DESC LIMIT ?)",
-            (session_id, count),
+            (session_id, owner_id, count),
         )
         logger.info(
             f"🗑️ chat_sessions trimmed: session={session_id[:8]}… removed={cur.rowcount}"
@@ -165,15 +193,15 @@ def delete_last_turns(session_id: str, count: int) -> int:
         return cur.rowcount
 
 
-def fetch_history(session_id: str, limit: int = 50) -> List[Dict[str, Any]]:
-    if not session_id:
+def fetch_history(session_id: str, owner_id: str, limit: int = 50) -> List[Dict[str, Any]]:
+    if not session_id or not owner_id:
         return []
     with _lock, _connect() as conn:
         rows = conn.execute(
             "SELECT id, user_msg, bot_msg, articles, created_at "
-            "FROM chat_sessions WHERE session_id = ? "
+            "FROM chat_sessions WHERE session_id = ? AND owner_id = ? "
             "ORDER BY id ASC LIMIT ?",
-            (session_id, limit),
+            (session_id, owner_id, limit),
         ).fetchall()
     return [
         {
@@ -187,24 +215,27 @@ def fetch_history(session_id: str, limit: int = 50) -> List[Dict[str, Any]]:
     ]
 
 
-def list_sessions(limit: int = 50) -> List[Dict[str, Any]]:
-    """All chat sessions with derived title (first user message) and metadata."""
+def list_sessions(owner_id: str, limit: int = 50) -> List[Dict[str, Any]]:
+    """Chat sessions belonging to one owner — sidebar list."""
+    if not owner_id:
+        return []
     with _lock, _connect() as conn:
         rows = conn.execute(
             """
             SELECT
                 session_id,
                 (SELECT user_msg FROM chat_sessions cs2
-                 WHERE cs2.session_id = cs.session_id
+                 WHERE cs2.session_id = cs.session_id AND cs2.owner_id = ?
                  ORDER BY id ASC LIMIT 1)               AS title,
                 MAX(created_at)                         AS last_at,
                 COUNT(*)                                AS turns
             FROM chat_sessions cs
+            WHERE cs.owner_id = ?
             GROUP BY session_id
             ORDER BY MAX(id) DESC
             LIMIT ?
             """,
-            (limit,),
+            (owner_id, owner_id, limit),
         ).fetchall()
     return [
         {
@@ -219,19 +250,20 @@ def list_sessions(limit: int = 50) -> List[Dict[str, Any]]:
 
 def record_consent(
     session_id: str,
+    owner_id: str,
     kind: str,
     accepted: bool,
     ip: Optional[str] = None,
     user_agent: Optional[str] = None,
 ) -> None:
-    if not session_id or not kind:
+    if not session_id or not owner_id or not kind:
         return
     try:
         with _lock, _connect() as conn:
             conn.execute(
-                "INSERT INTO consents (session_id, kind, accepted, ip, user_agent) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (session_id, kind, 1 if accepted else 0, ip, user_agent),
+                "INSERT INTO consents (session_id, owner_id, kind, accepted, ip, user_agent) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (session_id, owner_id, kind, 1 if accepted else 0, ip, user_agent),
             )
     except Exception as e:
         logger.error(f"❌ record_consent failed: {e}")
@@ -239,16 +271,18 @@ def record_consent(
 
 def record_report(
     session_id: str,
+    owner_id: str,
     reason: Optional[str] = None,
     message_ref: Optional[str] = None,
 ) -> None:
-    if not session_id:
+    if not session_id or not owner_id:
         return
     try:
         with _lock, _connect() as conn:
             conn.execute(
-                "INSERT INTO reports (session_id, reason, message_ref) VALUES (?, ?, ?)",
-                (session_id, redact_pii(reason), message_ref),
+                "INSERT INTO reports (session_id, owner_id, reason, message_ref) "
+                "VALUES (?, ?, ?, ?)",
+                (session_id, owner_id, redact_pii(reason), message_ref),
             )
     except Exception as e:
         logger.error(f"❌ record_report failed: {e}")
@@ -282,23 +316,29 @@ def cleanup_expired(
     return deleted
 
 
-def delete_session(session_id: str) -> int:
-    if not session_id:
+def delete_session(session_id: str, owner_id: str) -> int:
+    if not session_id or not owner_id:
         return 0
     with _lock, _connect() as conn:
-        cur = conn.execute("DELETE FROM chat_sessions WHERE session_id = ?", (session_id,))
+        cur = conn.execute(
+            "DELETE FROM chat_sessions WHERE session_id = ? AND owner_id = ?",
+            (session_id, owner_id),
+        )
         return cur.rowcount
 
 
-def recent_turns_for_reformulation(session_id: str, limit: int = 3) -> List[Dict[str, str]]:
+def recent_turns_for_reformulation(
+    session_id: str, owner_id: str, limit: int = 3
+) -> List[Dict[str, str]]:
     """Last N turns shaped for the router's reformulate_query (user/bot keys)."""
-    if not session_id:
+    if not session_id or not owner_id:
         return []
     with _lock, _connect() as conn:
         rows = conn.execute(
             "SELECT user_msg, bot_msg FROM chat_sessions "
-            "WHERE session_id = ? ORDER BY id DESC LIMIT ?",
-            (session_id, limit),
+            "WHERE session_id = ? AND owner_id = ? "
+            "ORDER BY id DESC LIMIT ?",
+            (session_id, owner_id, limit),
         ).fetchall()
     return list(reversed([{"user": r["user_msg"] or "", "bot": r["bot_msg"] or ""} for r in rows]))
 
@@ -326,20 +366,24 @@ def _refs(articles: List[Dict[str, Any]]) -> str:
 
 
 def fetch_reports(
+    owner_id: str,
     session_id: Optional[str] = None,
     limit: int = 100,
 ) -> List[Dict[str, Any]]:
+    if not owner_id:
+        return []
     with _lock, _connect() as conn:
         if session_id:
             rows = conn.execute(
-                "SELECT * FROM reports WHERE session_id = ? "
+                "SELECT * FROM reports WHERE owner_id = ? AND session_id = ? "
                 "ORDER BY id DESC LIMIT ?",
-                (session_id, limit),
+                (owner_id, session_id, limit),
             ).fetchall()
         else:
             rows = conn.execute(
-                "SELECT * FROM reports ORDER BY id DESC LIMIT ?",
-                (limit,),
+                "SELECT * FROM reports WHERE owner_id = ? "
+                "ORDER BY id DESC LIMIT ?",
+                (owner_id, limit),
             ).fetchall()
     return [dict(r) for r in rows]
 
@@ -347,6 +391,7 @@ def fetch_reports(
 def log_audit(
     event_type: str,
     session_id: Optional[str] = None,
+    owner_id: Optional[str] = None,
     query: Optional[str] = None,
     answer_text: Optional[str] = None,
     intent: Optional[str] = None,
@@ -376,13 +421,14 @@ def log_audit(
         with _lock, _connect() as conn:
             conn.execute(
                 "INSERT INTO audit_log "
-                "(timestamp, session_id, event_type, query, answer_text, intent, target_tables, "
+                "(timestamp, session_id, owner_id, event_type, query, answer_text, intent, target_tables, "
                 " retrieved_count, retrieved_refs, filtered_count, filtered_refs, "
                 " rulings_refs, source, latency_ms, error) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     datetime.utcnow().isoformat(timespec="seconds") + "Z",
                     session_id,
+                    owner_id,
                     event_type,
                     redact_pii(query),
                     redact_pii(answer_text),
@@ -403,20 +449,24 @@ def log_audit(
 
 
 def fetch_audit(
+    owner_id: str,
     session_id: Optional[str] = None,
     limit: int = 100,
 ) -> List[Dict[str, Any]]:
+    if not owner_id:
+        return []
     with _lock, _connect() as conn:
         if session_id:
             rows = conn.execute(
-                "SELECT * FROM audit_log WHERE session_id = ? "
+                "SELECT * FROM audit_log WHERE owner_id = ? AND session_id = ? "
                 "ORDER BY id DESC LIMIT ?",
-                (session_id, limit),
+                (owner_id, session_id, limit),
             ).fetchall()
         else:
             rows = conn.execute(
-                "SELECT * FROM audit_log ORDER BY id DESC LIMIT ?",
-                (limit,),
+                "SELECT * FROM audit_log WHERE owner_id = ? "
+                "ORDER BY id DESC LIMIT ?",
+                (owner_id, limit),
             ).fetchall()
 
     out = []

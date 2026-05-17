@@ -129,11 +129,20 @@ export class QaComponent {
   private currentRequest: Subscription | null = null;
 
   sessionId: string;
+  ownerId: string;
 
   constructor(
     private http: HttpClient,
     private cdr: ChangeDetectorRef
   ) {
+    const savedOwner = localStorage.getItem('mohamy_owner_id');
+    if (savedOwner) {
+      this.ownerId = savedOwner;
+    } else {
+      this.ownerId = this.generateSessionId();
+      localStorage.setItem('mohamy_owner_id', this.ownerId);
+    }
+
     const saved = localStorage.getItem('mohamy_session_id');
     if (saved && !saved.startsWith('web-')) {
       this.sessionId = saved;
@@ -173,6 +182,7 @@ export class QaComponent {
     this.http
       .post(this.consentUrl, {
         session_id: this.sessionId,
+        owner_id: this.ownerId,
         kind: 'privacy_cross_border_age',
         accepted: true,
       })
@@ -197,6 +207,7 @@ export class QaComponent {
     this.http
       .post(this.reportUrl, {
         session_id: this.sessionId,
+        owner_id: this.ownerId,
         reason: this.reportText.trim() || 'بدون تفاصيل',
         message_ref: ref,
       })
@@ -227,7 +238,8 @@ export class QaComponent {
     this.lastArticles = [];
     this.http
       .get<any>(
-        `${this.historyUrl}?session_id=${encodeURIComponent(this.sessionId)}&limit=50`
+        `${this.historyUrl}?session_id=${encodeURIComponent(this.sessionId)}` +
+        `&owner_id=${encodeURIComponent(this.ownerId)}&limit=50`
       )
       .subscribe({
         next: (resp) => {
@@ -260,7 +272,9 @@ export class QaComponent {
   }
 
   loadSessions(): void {
-    this.http.get<any>(`${this.sessionsUrl}?limit=50`).subscribe({
+    this.http.get<any>(
+      `${this.sessionsUrl}?owner_id=${encodeURIComponent(this.ownerId)}&limit=50`
+    ).subscribe({
       next: (resp) => {
         this.sessions = Array.isArray(resp?.sessions) ? resp.sessions : [];
         this.cdr.detectChanges();
@@ -303,7 +317,10 @@ export class QaComponent {
     if (!session) return;
     const id = session.session_id;
     this.pendingDeleteSession = null;
-    this.http.delete<any>(`${this.sessionsUrl}/${encodeURIComponent(id)}`).subscribe({
+    this.http.delete<any>(
+      `${this.sessionsUrl}/${encodeURIComponent(id)}` +
+      `?owner_id=${encodeURIComponent(this.ownerId)}`
+    ).subscribe({
       next: (resp) => {
         console.log('delete_session:', resp);
         this.sessions = this.sessions.filter((s) => s.session_id !== id);
@@ -343,6 +360,7 @@ export class QaComponent {
       .post<AskResponse>(this.apiUrl, {
         query,
         session_id: this.sessionId,
+        owner_id: this.ownerId,
       })
       .subscribe({
         next: (resp) => {
@@ -411,7 +429,7 @@ export class QaComponent {
         .delete(
           `${environment.apiUrl}/history/last?session_id=${encodeURIComponent(
             this.sessionId
-          )}&count=${userPairsAfter}`
+          )}&owner_id=${encodeURIComponent(this.ownerId)}&count=${userPairsAfter}`
         )
         .subscribe({
           next: () => this.loadSessions(),
@@ -444,6 +462,7 @@ export class QaComponent {
       .post<AskResponse>(this.apiUrl, {
         query: option,
         session_id: this.sessionId,
+        owner_id: this.ownerId,
       })
       .subscribe({
         next: (resp) => {
@@ -591,6 +610,7 @@ export class QaComponent {
     this.http
       .post<any>(this.explainUrl, {
         session_id: this.sessionId,
+        owner_id: this.ownerId,
         table: article.table,
         article_id: article.id,
       })
@@ -669,6 +689,7 @@ export class QaComponent {
     this.http
       .post(this.consentUrl, {
         session_id: this.sessionId,
+        owner_id: this.ownerId,
         kind: 'upload',
         accepted: true,
       })
@@ -693,6 +714,7 @@ export class QaComponent {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('session_id', this.sessionId);
+    formData.append('owner_id', this.ownerId);
 
     this.http.post<any>(this.uploadUrl, formData).subscribe({
       next: (response) => {
