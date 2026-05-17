@@ -472,10 +472,35 @@ async def ask(request: QueryRequest) -> Dict[str, Any]:
                     if len(relevant) >= 5:
                         break
                 filtered_articles = relevant if relevant else []
+
+            # Honest confidence score based on retrieval signals.
+            # 0  = no DB grounding (LLM only)
+            # 1-4 = weak retrieval (few or low-quality matches)
+            # 5-7 = solid match
+            # 8-10 = high confidence (user-cited an article and we found it)
+            n_filtered = len(filtered_articles)
+            if user_cited_articles and filtered_articles:
+                relevance_score = 9
+                conf_msg = "تطابق دقيق مع المادة التي ذكرتها"
+            elif n_filtered >= 4:
+                relevance_score = 7
+                conf_msg = "عدة مواد ذات صلة قوية"
+            elif n_filtered >= 2:
+                relevance_score = 6
+                conf_msg = "مواد ذات صلة معتدلة"
+            elif n_filtered == 1:
+                relevance_score = 4
+                conf_msg = "مادة واحدة مرتبطة — ثقة منخفضة"
+            else:
+                relevance_score = 2
+                conf_msg = "إجابة عامة بدون مواد محددة من قاعدة البيانات"
+            if law_existence_warning:
+                relevance_score = max(1, relevance_score - 3)
+                conf_msg = "القانون المُستشهد به غير موجود — راجع التصحيح أعلاه"
             verification = {
-                "verified": True,
-                "relevance_score": 7,
-                "message": "تم اختيار المواد الأعلى صلة من نتائج البحث",
+                "verified": relevance_score >= 5,
+                "relevance_score": relevance_score,
+                "message": conf_msg,
                 "filtered_articles": filtered_articles,
             }
             # Generate the final answer directly

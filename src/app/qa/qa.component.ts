@@ -572,6 +572,26 @@ export class QaComponent {
       chunks.push(banner);
     }
 
+    if (resp.verification?.precedent_warning) {
+      const refs = (resp.verification?.precedent_refs || []).slice(0, 4);
+      const refList = refs.map((r) => `• ${r}`).join('\n');
+      const banner =
+        '<div style="background:#78350f;color:#fff;padding:8px 12px;border-radius:8px;margin-bottom:8px"><strong>⚖️ تنبيه قضائي:</strong> توجد أحكام دستورية أو قضائية ذات صلة قد تؤثر على تطبيق المادة. راجع التفاصيل في الإجابة قبل الاعتماد عليها.' +
+        (refList ? '\n' + refList : '') +
+        '</div>';
+      chunks.push(banner);
+    }
+
+    if (resp.verification && typeof resp.verification.relevance_score === 'number'
+        && resp.verification.relevance_score < 5) {
+      const score = resp.verification.relevance_score;
+      const reason = resp.verification.message || '';
+      const banner =
+        '<div style="background:#3f3f46;color:#fff;padding:8px 12px;border-radius:8px;margin-bottom:8px;border-right:4px solid #f59e0b"><strong>🟡 ثقة منخفضة:</strong> هذه الإجابة معتمدة على مواد قليلة أو غير محددة من قاعدة البيانات (الثقة ' +
+        score + '/10' + (reason ? ' — ' + reason : '') + '). راجعها بحذر واستشر محامياً قبل اتخاذ أي قرار.</div>';
+      chunks.push(banner);
+    }
+
     if (resp.chosen_categories && resp.chosen_categories.length > 0) {
       const catText =
         '📂 تم تصفية النتائج حسب التصنيفات:\n- ' +
