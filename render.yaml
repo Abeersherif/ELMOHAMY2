@@ -19,6 +19,11 @@ services:
         value: /data/law_database.db
       - key: RUNTIME_DB_PATH
         value: /data/mohamy_runtime.db
+      # Skip LFS during git clone — the real DB lives on the /data disk
+      # so we never need to materialize the LFS pointer at checkout time.
+      # Saves 1.4 GB of LFS bandwidth per deploy and avoids quota errors.
+      - key: GIT_LFS_SKIP_SMUDGE
+        value: "1"
     
   # Static Frontend (Angular built files)
   - type: web
