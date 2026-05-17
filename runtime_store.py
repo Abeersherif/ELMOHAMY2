@@ -117,6 +117,12 @@ def init_schema() -> None:
                     logger.info(f"📒 Migrated audit_log: added {col_name} column")
                 except sqlite3.OperationalError as e:
                     logger.warning(f"audit_log migration ({col_name}) skipped: {e}")
+        if "relevance_score" not in audit_cols:
+            try:
+                conn.execute("ALTER TABLE audit_log ADD COLUMN relevance_score INTEGER")
+                logger.info("📒 Migrated audit_log: added relevance_score column")
+            except sqlite3.OperationalError as e:
+                logger.warning(f"audit_log migration (relevance_score) skipped: {e}")
 
         # Privacy isolation — owner_id per browser. Chats from before this
         # migration have no owner, so we wipe them (per product decision) and
@@ -402,6 +408,7 @@ def log_audit(
     source: Optional[str] = None,
     latency_ms: Optional[int] = None,
     error: Optional[str] = None,
+    relevance_score: Optional[int] = None,
 ) -> None:
     try:
         rulings_json = None
@@ -423,8 +430,8 @@ def log_audit(
                 "INSERT INTO audit_log "
                 "(timestamp, session_id, owner_id, event_type, query, answer_text, intent, target_tables, "
                 " retrieved_count, retrieved_refs, filtered_count, filtered_refs, "
-                " rulings_refs, source, latency_ms, error) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                " rulings_refs, source, latency_ms, error, relevance_score) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     datetime.utcnow().isoformat(timespec="seconds") + "Z",
                     session_id,
@@ -442,6 +449,7 @@ def log_audit(
                     source,
                     latency_ms,
                     error,
+                    relevance_score,
                 ),
             )
     except Exception as e:

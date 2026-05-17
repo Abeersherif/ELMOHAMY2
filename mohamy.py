@@ -503,6 +503,10 @@ async def ask(request: QueryRequest) -> Dict[str, Any]:
                 "message": conf_msg,
                 "filtered_articles": filtered_articles,
             }
+            logger.info(
+                f"📊 Confidence: {relevance_score}/10 — {conf_msg} "
+                f"(filtered={n_filtered}, user_cited={user_cited_articles})"
+            )
             # Generate the final answer directly
             final_answer = await answer_agent.generate_answer(
                 processed_query, retrieved,
@@ -545,6 +549,7 @@ async def ask(request: QueryRequest) -> Dict[str, Any]:
             rulings=rulings,
             source=source,
             latency_ms=latency_ms,
+            relevance_score=verification.get("relevance_score"),
         )
 
         return {
